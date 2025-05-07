@@ -84,8 +84,20 @@ void setup()
     // this will over-write the bootloader. To use the bootloader again, reflash it and change above back.
     app_setup(); // needed for coming from a bootloader, needs to be first in setup
     Serial.begin(115200);
-    dronecan.init(onTransferReceived, shouldAcceptTransfer, custom_parameters);
+    dronecan.version_major = 1;
+    dronecan.version_minor = 0;
+    dronecan.init(
+        onTransferReceived, 
+        shouldAcceptTransfer, 
+        custom_parameters,
+        "Beyond Robotix Node"
+    );
     IWatchdog.begin(2000000); // if the loop takes longer than 2 seconds, reset the system
+
+    // an example of getting and setting parameters within the code
+    dronecan.setParameter("PARM_1", 69);
+    Serial.print("PARM_1 value: ");
+    Serial.println(dronecan.getParameter("PARM_1"));
 
     while (true)
     {
@@ -102,7 +114,8 @@ void setup()
 
             // construct dronecan packet
             uavcan_equipment_power_BatteryInfo pkt{};
-            pkt.voltage = now / 10000;
+            pkt.voltage = analogRead(PA1);
+            pkt.current = analogRead(PA0);
             pkt.temperature = cpu_temp;
 
             // boilerplate to send a message
