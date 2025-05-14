@@ -1,12 +1,13 @@
-
 #include <Arduino.h>
 #include <dronecan.h>
 #include <IWatchdog.h>
 #include <app.h>
 #include <vector>
+#include <simple_dronecanmessages.h>
 
+// set up your parameters here with default values. NODEID should be kept
 std::vector<DroneCAN::parameter> custom_parameters = {
-    { "NODEID", UAVCAN_PROTOCOL_PARAM_VALUE_INTEGER_VALUE, 127,  0, 127 },
+    { "NODEID", UAVCAN_PROTOCOL_PARAM_VALUE_INTEGER_VALUE, 69,  0, 127 },
     { "PARM_1", UAVCAN_PROTOCOL_PARAM_VALUE_REAL_VALUE,   0.0f, 0.0f, 100.0f },
     { "PARM_2", UAVCAN_PROTOCOL_PARAM_VALUE_REAL_VALUE,   0.0f, 0.0f, 100.0f },
     { "PARM_3", UAVCAN_PROTOCOL_PARAM_VALUE_REAL_VALUE,   0.0f, 0.0f, 100.0f },
@@ -37,13 +38,6 @@ static void onTransferReceived(CanardInstance *ins, CanardRxTransfer *transfer)
     {
         uavcan_equipment_ahrs_MagneticFieldStrength pkt{};
         uavcan_equipment_ahrs_MagneticFieldStrength_decode(transfer, &pkt);
-        // Serial.print(pkt.magnetic_field_ga[0], 4);
-        // Serial.print(" ");
-        // Serial.print(pkt.magnetic_field_ga[1], 4);
-        // Serial.print(" ");
-        // Serial.print(pkt.magnetic_field_ga[2], 4);
-        // Serial.print(" ");
-        // Serial.println();
         break;
     }
     }
@@ -84,6 +78,7 @@ void setup()
     // this will over-write the bootloader. To use the bootloader again, reflash it and change above back.
     app_setup(); // needed for coming from a bootloader, needs to be first in setup
     Serial.begin(115200);
+    
     dronecan.version_major = 1;
     dronecan.version_minor = 0;
     dronecan.init(
@@ -92,6 +87,7 @@ void setup()
         custom_parameters,
         "Beyond Robotix Node"
     );
+
     IWatchdog.begin(2000000); // if the loop takes longer than 2 seconds, reset the system
 
     // an example of getting and setting parameters within the code
@@ -104,6 +100,7 @@ void setup()
         const uint32_t now = millis();
 
         // send our battery message at 10Hz
+        // Don't use delay() since we need to call dronecan.cycle() as much as possible
         if (now - looptime > 100)
         {
             looptime = millis();
@@ -118,17 +115,7 @@ void setup()
             pkt.current = analogRead(PA0);
             pkt.temperature = cpu_temp;
 
-            // boilerplate to send a message
-            uint8_t buffer[UAVCAN_EQUIPMENT_POWER_BATTERYINFO_MAX_SIZE];
-            uint32_t len = uavcan_equipment_power_BatteryInfo_encode(&pkt, buffer);
-            static uint8_t transfer_id;
-            canardBroadcast(&dronecan.canard,
-                            UAVCAN_EQUIPMENT_POWER_BATTERYINFO_SIGNATURE,
-                            UAVCAN_EQUIPMENT_POWER_BATTERYINFO_ID,
-                            &transfer_id,
-                            CANARD_TRANSFER_PRIORITY_LOW,
-                            buffer,
-                            len);
+            sendUavcanMsg(dronecan.canard, pkt);
         }
 
         dronecan.cycle();
