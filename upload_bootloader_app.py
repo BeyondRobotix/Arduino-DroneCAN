@@ -2,33 +2,52 @@ Import("env")
 import os
 import subprocess
 
-# Project-relative paths
-bootloader_path = os.path.abspath("MicroNodeBootloader.bin")
-firmware_path = os.path.abspath(os.path.join(env.subst("$BUILD_DIR"), "firmware.bin"))
 
-# Correct OpenOCD executable
+bootloader_path = os.path.abspath(os.path.join(env.subst("$PROJECT_DIR"), "MicroNodeBootloader.bin")).replace("\\", "/")
+firmware_path = os.path.abspath(os.path.join(env.subst("$BUILD_DIR"), "firmware.bin")).replace("\\", "/")
 openocd = os.path.join(env.subst("$PROJECT_PACKAGES_DIR"), "tool-openocd", "bin", "openocd.exe")
+scripts_dir = os.path.join(env.subst("$PROJECT_PACKAGES_DIR"), "tool-openocd", "openocd", "scripts")
 
-# Fix for OpenOCD scripts: use the scripts from board config
 interface_cfg = "interface/stlink.cfg"
-target_cfg = "target/stm32L4x.cfg"
+target_cfg = "target/stm32l4x.cfg"
 
-# Full command
 def custom_upload(source, target, env):
-    cmd = [
+
+    cmd1 = [
         openocd,
-        "-s", os.path.join(env.subst("$PROJECT_PACKAGES_DIR"), "tool-openocd", "scripts"),  # this tells OpenOCD where to find .cfg files
+        "-s", scripts_dir,
         "-f", interface_cfg,
         "-f", target_cfg,
-        "-c", f"program {bootloader_path} 0x08000000 verify",
-        "-c", f"program {firmware_path} 0x0800A000 verify reset exit"
+        "-c", f'program "{bootloader_path}" 0x8000000 verify reset exit'
     ]
 
-    print("Flashing bootloader + application...")
+    cmd2 = [
+        openocd,
+        "-s", scripts_dir,
+        "-f", interface_cfg,
+        "-f", target_cfg,
+        "-c", f'program "{firmware_path}" 0x800A000 verify reset exit'
+    ]
+
+
     try:
-        result = subprocess.run(cmd, check=True)
+        print("flashing bootloader")
+        print()
+        subprocess.run(cmd1, check=True)
+        print("flashing app")
+        print()
+        subprocess.run(cmd2, check=True)
     except subprocess.CalledProcessError as e:
-        print("Upload failed.")
+        print(f"""
+              
+
+        -------------------
+        Upload failed!!! 
+        Exception: {e}
+        -------------------
+        
+        
+        """)
         env.Exit(1)
 
 env.Replace(UPLOADCMD=custom_upload)
