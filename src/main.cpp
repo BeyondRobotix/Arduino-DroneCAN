@@ -74,8 +74,6 @@ static bool shouldAcceptTransfer(const CanardInstance *ins,
 
 void setup()
 {
-    // to use debugging tools, remove app_setup and set FLASH start from 0x800A000 to 0x8000000 in ldscript.ld
-    // this will over-write the bootloader. To use the bootloader again, reflash it and change above back.
     app_setup(); // needed for coming from a bootloader, needs to be first in setup
     Serial.begin(115200);
     

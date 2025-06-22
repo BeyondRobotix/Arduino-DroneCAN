@@ -1,9 +1,9 @@
 /*
-* This is an example app using the INA libary from https://github.com/RobTillaart/INA239
-* You'll need to download the library
-* this code is untested, and is just for illustration on how you could use the library. Hopefully I can test it with the INA soon : )
-*/
-
+ * Arduino DroneCAN API v1.3
+ * This is an example app using the INA libary from https://github.com/RobTillaart/INA239
+ * You'll need to download the library
+ * this code is untested, and is just for illustration on how you could use the library. Hopefully I can test it with the INA soon : )
+ */
 
 #include <Arduino.h>
 #include <dronecan.h>
@@ -11,15 +11,12 @@
 #include <app.h>
 #include <vector>
 #include "INA239.h"
+#include <simple_dronecanmessages.h>
 
 INA239 INA(5, &SPI);
 
-
 std::vector<DroneCAN::parameter> custom_parameters = {
-    { "NODEID", UAVCAN_PROTOCOL_PARAM_VALUE_INTEGER_VALUE, 127,  0, 127 },
-    { "PARM_1", UAVCAN_PROTOCOL_PARAM_VALUE_REAL_VALUE,   0.0f, 0.0f, 100.0f },
-    { "PARM_2", UAVCAN_PROTOCOL_PARAM_VALUE_REAL_VALUE,   0.0f, 0.0f, 100.0f },
-};
+    {"NODEID", UAVCAN_PROTOCOL_PARAM_VALUE_INTEGER_VALUE, 127, 0, 127}};
 
 DroneCAN dronecan;
 
@@ -42,19 +39,24 @@ static bool shouldAcceptTransfer(const CanardInstance *ins,
 
 void setup()
 {
-    // to use debugging tools, remove app_setup and set FLASH start from 0x800A000 to 0x8000000 in ldscript.ld
-    // this will over-write the bootloader. To use the bootloader again, reflash it and change above back.
-    app_setup(); // needed for coming from a bootloader, needs to be first in setup
+    app_setup();
     Serial.begin(115200);
-    dronecan.init(onTransferReceived, shouldAcceptTransfer, custom_parameters);
+    dronecan.version_major = 1;
+    dronecan.version_minor = 0;
+    dronecan.init(
+        onTransferReceived,
+        shouldAcceptTransfer,
+        custom_parameters,
+        "Beyond Robotix Node");
     IWatchdog.begin(2000000); // if the loop takes longer than 2 seconds, reset the system
 
     SPI.begin();
 
-    if (!INA.begin() )
+    if (!INA.begin())
     {
         Serial.println("Could not connect. Fix and Reboot");
-        while(1);
+        while (1)
+            ;
     }
 
     // set your shunt resistance here
@@ -72,20 +74,10 @@ void setup()
             // construct dronecan packet
             uavcan_equipment_power_BatteryInfo pkt{};
             pkt.voltage = INA.getBusVoltage();
-            pkt.current = INA.getMilliAmpere()/1000;
+            pkt.current = INA.getMilliAmpere() / 1000;
             pkt.temperature = INA.getTemperature();
 
-            // boilerplate to send a message
-            uint8_t buffer[UAVCAN_EQUIPMENT_POWER_BATTERYINFO_MAX_SIZE];
-            uint32_t len = uavcan_equipment_power_BatteryInfo_encode(&pkt, buffer);
-            static uint8_t transfer_id;
-            canardBroadcast(&dronecan.canard,
-                            UAVCAN_EQUIPMENT_POWER_BATTERYINFO_SIGNATURE,
-                            UAVCAN_EQUIPMENT_POWER_BATTERYINFO_ID,
-                            &transfer_id,
-                            CANARD_TRANSFER_PRIORITY_LOW,
-                            buffer,
-                            len);
+            sendUavcanMsg(dronecan.canard, pkt);
         }
 
         dronecan.cycle();

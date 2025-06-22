@@ -1,4 +1,8 @@
 
+/*
+API version v1.3
+*/
+
 #include <Arduino.h>
 #include <dronecan.h>
 #include <IWatchdog.h>
@@ -7,7 +11,7 @@
 #include <HCSR04.h>
 
 std::vector<DroneCAN::parameter> custom_parameters = {
-    { "NODEID", UAVCAN_PROTOCOL_PARAM_VALUE_INTEGER_VALUE, 127,  0, 127 },
+    { "NODEID", UAVCAN_PROTOCOL_PARAM_VALUE_INTEGER_VALUE, 69,  0, 127 },
     { "PARM_1", UAVCAN_PROTOCOL_PARAM_VALUE_REAL_VALUE,   0.0f, 0.0f, 100.0f },
     { "PARM_2", UAVCAN_PROTOCOL_PARAM_VALUE_REAL_VALUE,   0.0f, 0.0f, 100.0f },
     { "PARM_3", UAVCAN_PROTOCOL_PARAM_VALUE_REAL_VALUE,   0.0f, 0.0f, 100.0f },
@@ -27,28 +31,6 @@ We need to do boiler plate code in here to handle parameter updates and so on, b
 */
 static void onTransferReceived(CanardInstance *ins, CanardRxTransfer *transfer)
 {
-
-    // switch on data type ID to pass to the right handler function
-    // if (transfer->transfer_type == CanardTransferTypeRequest)
-    // check if we want to handle a specific service request
-    switch (transfer->data_type_id)
-    {
-
-    case UAVCAN_EQUIPMENT_AHRS_MAGNETICFIELDSTRENGTH_ID:
-    {
-        uavcan_equipment_ahrs_MagneticFieldStrength pkt{};
-        uavcan_equipment_ahrs_MagneticFieldStrength_decode(transfer, &pkt);
-        // Serial.print(pkt.magnetic_field_ga[0], 4);
-        // Serial.print(" ");
-        // Serial.print(pkt.magnetic_field_ga[1], 4);
-        // Serial.print(" ");
-        // Serial.print(pkt.magnetic_field_ga[2], 4);
-        // Serial.print(" ");
-        // Serial.println();
-        break;
-    }
-    }
-
     DroneCANonTransferReceived(dronecan, ins, transfer);
 }
 
@@ -63,19 +45,6 @@ static bool shouldAcceptTransfer(const CanardInstance *ins,
                                  uint8_t source_node_id)
 
 {
-    if (transfer_type == CanardTransferTypeBroadcast)
-    {
-        // Check if we want to handle a specific broadcast packet
-        switch (data_type_id)
-        {
-        case UAVCAN_EQUIPMENT_AHRS_MAGNETICFIELDSTRENGTH_ID:
-        {
-            *out_data_type_signature = UAVCAN_EQUIPMENT_AHRS_MAGNETICFIELDSTRENGTH_SIGNATURE;
-            return true;
-        }
-        }
-    }
-
     return false || DroneCANshoudlAcceptTransfer(ins, out_data_type_signature, data_type_id, transfer_type, source_node_id);
 }
 
@@ -100,10 +69,6 @@ void setup()
     );
     IWatchdog.begin(2000000); // if the loop takes longer than 2 seconds, reset the system
 
-    // an example of getting and setting parameters within the code
-    dronecan.setParameter("PARM_1", 69);
-    Serial.print("PARM_1 value: ");
-    Serial.println(dronecan.getParameter("PARM_1"));
 
     while (true)
     {
