@@ -14,12 +14,6 @@ API version v1.3
 std::vector<DroneCAN::parameter> custom_parameters = {
     { "NODEID", UAVCAN_PROTOCOL_PARAM_VALUE_INTEGER_VALUE, 100,  0, 127 },
     { "PARM_1", UAVCAN_PROTOCOL_PARAM_VALUE_REAL_VALUE,   0.0f, 0.0f, 100.0f },
-    { "PARM_2", UAVCAN_PROTOCOL_PARAM_VALUE_REAL_VALUE,   0.0f, 0.0f, 100.0f },
-    { "PARM_3", UAVCAN_PROTOCOL_PARAM_VALUE_REAL_VALUE,   0.0f, 0.0f, 100.0f },
-    { "PARM_4", UAVCAN_PROTOCOL_PARAM_VALUE_REAL_VALUE,   0.0f, 0.0f, 100.0f },
-    { "PARM_5", UAVCAN_PROTOCOL_PARAM_VALUE_REAL_VALUE,   0.0f, 0.0f, 100.0f },
-    { "PARM_6", UAVCAN_PROTOCOL_PARAM_VALUE_REAL_VALUE,   0.0f, 0.0f, 100.0f },
-    { "PARM_7", UAVCAN_PROTOCOL_PARAM_VALUE_REAL_VALUE,   0.0f, 0.0f, 100.0f },
 };
 
 DroneCAN dronecan;
@@ -32,21 +26,6 @@ We need to do boiler plate code in here to handle parameter updates and so on, b
 */
 static void onTransferReceived(CanardInstance *ins, CanardRxTransfer *transfer)
 {
-
-    // switch on data type ID to pass to the right handler function
-    // if (transfer->transfer_type == CanardTransferTypeRequest)
-    // check if we want to handle a specific service request
-    switch (transfer->data_type_id)
-    {
-
-    case UAVCAN_EQUIPMENT_AHRS_MAGNETICFIELDSTRENGTH_ID:
-    {
-        uavcan_equipment_ahrs_MagneticFieldStrength pkt{};
-        uavcan_equipment_ahrs_MagneticFieldStrength_decode(transfer, &pkt);
-        break;
-    }
-    }
-
     DroneCANonTransferReceived(dronecan, ins, transfer);
 }
 
@@ -61,29 +40,15 @@ static bool shouldAcceptTransfer(const CanardInstance *ins,
                                  uint8_t source_node_id)
 
 {
-    if (transfer_type == CanardTransferTypeBroadcast)
-    {
-        // Check if we want to handle a specific broadcast packet
-        switch (data_type_id)
-        {
-        case UAVCAN_EQUIPMENT_AHRS_MAGNETICFIELDSTRENGTH_ID:
-        {
-            *out_data_type_signature = UAVCAN_EQUIPMENT_AHRS_MAGNETICFIELDSTRENGTH_SIGNATURE;
-            return true;
-        }
-        }
-    }
-
     return false || DroneCANshoudlAcceptTransfer(ins, out_data_type_signature, data_type_id, transfer_type, source_node_id);
 }
 
 void setup()
 {
-    // to use debugging tools, remove app_setup and set FLASH start from 0x800A000 to 0x8000000 in ldscript.ld
-    // this will over-write the bootloader. To use the bootloader again, reflash it and change above back.
-    app_setup(); // needed for coming from a bootloader, needs to be first in setup
+    // the following block of code should always run first. Adjust it at your own peril!
+    app_setup();
+    IWatchdog.begin(2000000); 
     Serial.begin(115200);
-    
     dronecan.version_major = 1;
     dronecan.version_minor = 0;
     dronecan.init(
@@ -92,9 +57,8 @@ void setup()
         custom_parameters,
         "Beyond Robotix Node"
     );
-
-    IWatchdog.begin(2000000); // if the loop takes longer than 2 seconds, reset the system
-
+    // end of important starting code
+    
     // an example of getting and setting parameters within the code
     dronecan.setParameter("PARM_1", 50.0f);
     Serial.print("PARM_1 value: ");

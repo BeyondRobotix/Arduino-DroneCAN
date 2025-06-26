@@ -12,13 +12,6 @@ API version v1.3
 
 std::vector<DroneCAN::parameter> custom_parameters = {
     { "NODEID", UAVCAN_PROTOCOL_PARAM_VALUE_INTEGER_VALUE, 100,  0, 127 },
-    { "PARM_1", UAVCAN_PROTOCOL_PARAM_VALUE_REAL_VALUE,   0.0f, 0.0f, 100.0f },
-    { "PARM_2", UAVCAN_PROTOCOL_PARAM_VALUE_REAL_VALUE,   0.0f, 0.0f, 100.0f },
-    { "PARM_3", UAVCAN_PROTOCOL_PARAM_VALUE_REAL_VALUE,   0.0f, 0.0f, 100.0f },
-    { "PARM_4", UAVCAN_PROTOCOL_PARAM_VALUE_REAL_VALUE,   0.0f, 0.0f, 100.0f },
-    { "PARM_5", UAVCAN_PROTOCOL_PARAM_VALUE_REAL_VALUE,   0.0f, 0.0f, 100.0f },
-    { "PARM_6", UAVCAN_PROTOCOL_PARAM_VALUE_REAL_VALUE,   0.0f, 0.0f, 100.0f },
-    { "PARM_7", UAVCAN_PROTOCOL_PARAM_VALUE_REAL_VALUE,   0.0f, 0.0f, 100.0f },
 };
 
 DroneCAN dronecan;
@@ -55,9 +48,9 @@ UltraSonicDistanceSensor distanceSensor(triggerPin, echoPin);
 
 void setup()
 {
-    // to use debugging tools, remove app_setup and set FLASH start from 0x800A000 to 0x8000000 in ldscript.ld
-    // this will over-write the bootloader. To use the bootloader again, reflash it and change above back.
-    app_setup(); // needed for coming from a bootloader, needs to be first in setup
+    // the following block of code should always run first. Adjust it at your own peril!
+    app_setup();
+    IWatchdog.begin(2000000); 
     Serial.begin(115200);
     dronecan.version_major = 1;
     dronecan.version_minor = 0;
@@ -67,7 +60,7 @@ void setup()
         custom_parameters,
         "Beyond Robotix Node"
     );
-    IWatchdog.begin(2000000); // if the loop takes longer than 2 seconds, reset the system
+    // end of important starting code
 
 
     while (true)

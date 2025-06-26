@@ -39,16 +39,19 @@ static bool shouldAcceptTransfer(const CanardInstance *ins,
 
 void setup()
 {
+    // the following block of code should always run first. Adjust it at your own peril!
     app_setup();
+    IWatchdog.begin(2000000); 
     Serial.begin(115200);
     dronecan.version_major = 1;
     dronecan.version_minor = 0;
     dronecan.init(
-        onTransferReceived,
-        shouldAcceptTransfer,
+        onTransferReceived, 
+        shouldAcceptTransfer, 
         custom_parameters,
-        "Beyond Robotix Node");
-    IWatchdog.begin(2000000); // if the loop takes longer than 2 seconds, reset the system
+        "Beyond Robotix Node"
+    );
+    // end of important starting code
 
     SPI.begin();
 
