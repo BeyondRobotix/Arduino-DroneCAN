@@ -73,10 +73,11 @@ static bool shouldAcceptTransfer(const CanardInstance *ins,
 }
 
 void setup()
-{
-    app_setup(); // needed for coming from a bootloader, needs to be first in setup
+{   
+    // the following block of code should always run first. Adjust it at your own peril!
+    app_setup();
+    IWatchdog.begin(2000000); 
     Serial.begin(115200);
-    
     dronecan.version_major = 1;
     dronecan.version_minor = 0;
     dronecan.init(
@@ -85,14 +86,15 @@ void setup()
         custom_parameters,
         "Beyond Robotix Node"
     );
-
-    IWatchdog.begin(2000000); // if the loop takes longer than 2 seconds, reset the system
+    // end of important starting code
+    
 
     // an example of getting and setting parameters within the code
     dronecan.setParameter("PARM_1", 50.0f); // set a parameter to 50.0
     Serial.print("PARM_1 value: ");
     Serial.println(dronecan.getParameter("PARM_1"));
 
+    // we use a while true loop instead of the arduino "loop" function since that causes issues.
     while (true)
     {
         const uint32_t now = millis();
