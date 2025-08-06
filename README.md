@@ -32,6 +32,8 @@ sendUavcanMsg(dronecan.canard, pkt);
 
 See [Beyond Robotix Gitbooks ArduinoCAN documentation](https://beyond-robotix.gitbook.io/docs/can-node-system/arduino-dronecan) for more information!
 
+We have a big tutorial here which runs through integrating a sensor: [Arduino DroneCAN tutorial](https://beyond-robotix.gitbook.io/docs/can-node-system/arduino-dronecan/thermocouple-tutorial)
+
 ## Currently Supported Hardware
 
 This repository is plug and play with the Beyond Robotix CAN node series!
