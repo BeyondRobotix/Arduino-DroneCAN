@@ -8,7 +8,7 @@
     },
     "mcu": "stm32h743xih6",
     "product_line": "STM32H743xx",
-    "variant": "BRCoreNode"
+    "variant": "CoreNode"
   },
   "connectivity": [
     "can",
