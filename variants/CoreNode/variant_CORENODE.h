@@ -1,6 +1,6 @@
 /*
  *******************************************************************************
- * Copyright (c) 2023, STMicroelectronics
+ * Copyright (c) 2020, STMicroelectronics
  * All rights reserved.
  *
  * This software component is licensed by ST under BSD 3-Clause license,
@@ -15,269 +15,289 @@
 /*----------------------------------------------------------------------------
  *        STM32 pins number
  *----------------------------------------------------------------------------*/
-#define PJ9                             0       // UART8_RX
-#define PJ8                             1       // UART8_TX
-#define PJ3                             2
-#define PF8                             3       // S_TIM13_CH1 / PMOD #14
-#define PJ4                             4
-#define PA6                             5       // DCMI_PIXCK
-#define PJ7                             6       // TIM8_CH2N
-#define PJ0                             7
-#define PJ5                             8
-#define PJ6                             9       // S_TIM8_CH2
-#define PK1                             10      // SPI5_NSS
-#define PJ10                            11      // SPI5_MOSI
-#define PJ11                            12      // SPI5_MISO
-#define PK0                             13      // SPI5_SCK
-#define PD13                            14      // I2C4_SDA / PMOD #10
-#define PD12                            15      // I2C4_SCL / PMOD #7
-#define PA4                             PIN_A0  // Pin 16 - ADC12_INP18 / DCMI_HSYNC / PMOD #13
-#define PF10                            PIN_A1  // Pin 17 - ADC3_INP6
-#define PA0_C                           PIN_A2  // Pin 18 - ADC12_INP0
-#define PA1_C                           PIN_A3  // Pin 19 - ADC12_INP1
-#define PC2_C                           PIN_A4  // Pin 20 - ADC3_INP0
-#define PC3_C                           PIN_A5  // Pin 21 - ADC3_INP1
-
-// User LEDs
-#define PI12                            22      // LED1
-#define PI13                            23      // LED2
-#define PI14                            24      // LED3
-#define PI15                            25      // LED4
-
-// ST-Link UART
-#define PA10                            26      // USART1_RX / ST-Link Tx
-#define PA9                             27      // USART1_TX / ST-Link Rx
-
-// SPI
-#define PA11                            28      // SPI2_NSS / PMOD #1 NSS
-#define PA12                            29      // SPI2_SCK / PMOD #4 SCK
-#define PC2                             30      // SPI2_MISO / PMOD #3 MISOp
-#define PC3                             31      // SPI2_MOSI / PMOD #2 MOSIp
-
-// GPIO Buttons
-#define PK2                             32      // JOY_SEL
-#define PK3                             33      // JOY_DOWN
-#define PK4                             34      // JOY_LEFT
-#define PK5                             35      // JOY_RIGHT
-#define PK6                             36      // JOY_UP
-#define PC13                            37      // Wakeup Button / RTC_TAMP1
-
-// QuadSPI
-#define PB2                             38      // QUADSPI_CLK
-#define PG6                             39      // QUADSPI_BK1_NCS
-#define PD11                            40      // QUADSPI_BK1_IO0
-#define PF9                             41      // QUADSPI_BK1_IO1
-#define PF7                             42      // QUADSPI_BK1_IO2
-#define PF6                             43      // QUADSPI_BK1_IO3
-#define PH2                             44      // QUADSPI_BK2_IO0
-#define PH3                             45      // QUADSPI_BK2_IO1
-#define PG9                             46      // QUADSPI_BK2_IO2
-#define PG14                            47      // QUADSPI_BK2_IO3
-
-// SDIO/SDMMC
-#define PC8                             48      // SDMMC1_D0 / SDIO1_D0
-#define PC9                             49      // SDMMC1_D1 / SDIO1_D1 / DCMI_D3
-#define PC10                            50      // SDMMC1_D2 / SDIO1_D2
-#define PC11                            51      // SDMMC1_D3 / SDIO1_D3 / DCMI_D4
-#define PC12                            52      // SDMMC1_CK / SDIO1_CK
-#define PD2                             53      // SDMMC1_CMD / SDIO1_CMD
-#define PI8                             54      // uSD_Detect
-
-// Digital Camera Interface
-#define PG10                            55      // DCMI_D2
-#define PB7                             56      // DCMI_VSYNC
-#define PJ14                            57      // DCMI_PWR_EN
-
-// USB
-#define PA5                             58      // USB_OTG_HS_ULPI_CK
-#define PA3                             59      // USB_OTG_HS_ULPI_D0
-#define PB0                             60      // USB_OTG_HS_ULPI_D1
-#define PB1                             61      // USB_OTG_HS_ULPI_D2
-#define PB10                            62      // USB_OTG_HS_ULPI_D3
-#define PB11                            63      // USB_OTG_HS_ULPI_D4
-#define PB12                            64      // USB_OTG_HS_ULPI_D5
-#define PB13                            65      // USB_OTG_HS_ULPI_D6
-#define PB5                             66      // USB_OTG_HS_ULPI_D7
-#define PC0                             67      // USB_OTG_HS_ULPI_STP
-#define PH4                             68      // USB_OTG_HS_ULPI_NXT
-#define PI11                            69      // USB_OTG_HS_ULPI_DIR
-#define PJ1                             70      // OTG_HS_OverCurrent
-
-// Audio
-#define PD7                             71      // SPDIF_RX0
-#define PE3                             72      // SAI1_SD_B
-#define PE4                             73      // SAI1_FS_A
-#define PE5                             74      // SAI1_SCK_A
-#define PE6                             75      // SAI1_SD_A
-#define PG7                             76      // SAI1_MCLK_A
-#define PC1                             77      // SAI4_D1  / ETH_MDC
-#define PE2                             78      // SAI4_CK1 / ETH_nINT
-#define PJ15                            79      // Audio_INT (Audio Codec IRQ)
-
-// Pmod™
-#define PA0                             80      // PMOD #1 CTS
-#define PD5                             81      // PMOD #2 TX
-#define PD6                             82      // PMOD #3 RX
-#define PD4                             83      // PMOD #4 RTS
-#define PB15                            84      // PMOD #8
-#define PB14                            85      // PMOD #9
-#define PC6                             86      // PMOD #11 / DCMI_D0
-#define PJ13                            87      // PMOD #12
-#define PC7                             88      // PMOD #17 / DCMI_D1
-#define PD3                             89      // PMOD #18 / DCMI_D5
-#define PB9                             90      // PMOD #19
-#define PB8                             91      // PMOD #20
-
-// Clock outputs
-#define PH0                             92      // RCC_OSC_IN
-#define PH1                             93      // RCC_OSC_OUT
-#define PC14                            94      // RCC_OSC32_IN
-#define PC15                            95      // RCC_OSC32_OUT
-#define PA8                             96      // CEC_CK / RCC_MCO_1
-
-// LCD/DSI
-#define PJ12                            97      // LCD_BL_CTRL
-#define PG3                             98      // DSI_Reset
-#define PJ2                             99      // DSI_TE
-#define PB6                             100     // HDMI_CEC
-
-// Touch Screen Controller
-#define PK7                             101     // TOUCH_INT
-
-// Flash Memory Controller
-#define PE0                             102     // FMC_NBL0
-#define PE1                             103     // FMC_NBL1
-#define PI4                             104     // FMC_NBL2
-#define PI5                             105     // FMC_NBL3
-#define PG8                             106     // FMC_SDCLK
-#define PH5                             107     // FMC_SDNWE
-#define PH6                             108     // FMC_SDNE1
-#define PH7                             109     // FMC_SDCKE1
-#define PF11                            110     // FMC_SDNRAS
-#define PG15                            111     // FMC_SDNCAS
-#define PD14                            112     // FMC_D0
-#define PD15                            113     // FMC_D1
-#define PD0                             114     // FMC_D2
-#define PD1                             115     // FMC_D3
-#define PE7                             116     // FMC_D4
-#define PE8                             117     // FMC_D5
-#define PE9                             118     // FMC_D6
-#define PE10                            119     // FMC_D7
-#define PE11                            120     // FMC_D8
-#define PE12                            121     // FMC_D9
-#define PE13                            122     // FMC_D10
-#define PE14                            123     // FMC_D11
-#define PE15                            124     // FMC_D12
-#define PD8                             125     // FMC_D13
-#define PD9                             126     // FMC_D14
-#define PD10                            127     // FMC_D15
-#define PH8                             128     // FMC_D16
-#define PH9                             129     // FMC_D17
-#define PH10                            130     // FMC_D18
-#define PH11                            131     // FMC_D19
-#define PH12                            132     // FMC_D20
-#define PH13                            133     // FMC_D21
-#define PH14                            134     // FMC_D22
-#define PH15                            135     // FMC_D23
-#define PI0                             136     // FMC_D24
-#define PI1                             137     // FMC_D25
-#define PI2                             138     // FMC_D26
-#define PI3                             139     // FMC_D27
-#define PI6                             140     // FMC_D28
-#define PI7                             141     // FMC_D29
-#define PI9                             142     // FMC_D30
-#define PI10                            143     // FMC_D31
-#define PF0                             144     // FMC_A0
-#define PF1                             145     // FMC_A1
-#define PF2                             146     // FMC_A2
-#define PF3                             147     // FMC_A3
-#define PF4                             148     // FMC_A4
-#define PF5                             149     // FMC_A5
-#define PF12                            150     // FMC_A6
-#define PF13                            151     // FMC_A7
-#define PF14                            152     // FMC_A8
-#define PF15                            153     // FMC_A9
-#define PG0                             154     // FMC_A10
-#define PG1                             155     // FMC_A11
-#define PG2                             156     // FMC_A12
-// FMC_A13 does not exist
-#define PG4                             157     // FMC_A14
-#define PG5                             158     // FMC A15
-
-// JTAG/SWD
-#define PA13                            159     // TMS / SWDIO
-#define PA14                            160     // TCK / SWCLK
-#define PA15                            161     // TDI
-#define PB3                             162     // TDO / SWO
-#define PB4                             163     // TRST
-
-/* WARNING: Ethernet is unusable by default on the board */
-// Ethernet port
-#define PA1                             164     // ETH_REF_CLK
-#define PA2                             165     // ETH_MDIO
-#define PA7                             166     // ETH_CRS_DV
-#define PC4                             167     // ETH_RXD0
-#define PC5                             168     // ETH_RXD1
-#define PG11                            169     // ETH_TX_EN
-#define PG12                            170     // ETH_TXD1
-#define PG13                            171     // ETH_TXD0
+#define PA0                     PIN_A0
+#define PA1                     PIN_A1
+#define PA2                     PIN_A2
+#define PA3                     PIN_A3
+#define PA4                     PIN_A4
+#define PA5                     PIN_A5
+#define PA6                     PIN_A6
+#define PA7                     PIN_A7
+#define PA8                     8
+#define PA9                     9
+#define PA10                    10
+#define PA11                    11
+#define PA12                    12
+#define PA13                    13
+#define PA14                    14
+#define PA15                    15
+#define PB0                     PIN_A8
+#define PB1                     PIN_A9
+#define PB2                     18
+#define PB3                     19
+#define PB4                     20
+#define PB5                     21
+#define PB6                     22
+#define PB7                     23
+#define PB8                     24
+#define PB9                     25
+#define PB10                    26
+#define PB11                    27
+#define PB12                    28
+#define PB13                    29
+#define PB14                    30
+#define PB15                    31
+#define PC0                     PIN_A10
+#define PC1                     PIN_A11
+#define PC2                     PIN_A12
+#define PC3                     PIN_A13
+#define PC4                     PIN_A14
+#define PC5                     PIN_A15
+#define PC6                     38
+#define PC7                     39
+#define PC8                     40
+#define PC9                     41
+#define PC10                    42
+#define PC11                    43
+#define PC12                    44
+#define PC13                    45
+#define PC14                    46
+#define PC15                    47
+#define PD0                     48
+#define PD1                     49
+#define PD2                     50
+#define PD3                     51
+#define PD4                     52
+#define PD5                     53
+#define PD6                     54
+#define PD7                     55
+#define PD8                     56
+#define PD9                     57
+#define PD10                    58
+#define PD11                    59
+#define PD12                    60
+#define PD13                    61
+#define PD14                    62
+#define PD15                    63
+#define PE0                     64
+#define PE1                     65
+#define PE2                     66
+#define PE3                     67
+#define PE4                     68
+#define PE5                     69
+#define PE6                     70
+#define PE7                     71
+#define PE8                     72
+#define PE9                     73
+#define PE10                    74
+#define PE11                    75
+#define PE12                    76
+#define PE13                    77
+#define PE14                    78
+#define PE15                    79
+#define PF0                     80
+#define PF1                     81
+#define PF2                     82
+#define PF3                     PIN_A16
+#define PF4                     PIN_A17
+#define PF5                     PIN_A18
+#define PF6                     PIN_A19
+#define PF7                     PIN_A20
+#define PF8                     PIN_A21
+#define PF9                     PIN_A22
+#define PF10                    PIN_A23
+#define PF11                    PIN_A24
+#define PF12                    PIN_A25
+#define PF13                    PIN_A26
+#define PF14                    PIN_A27
+#define PF15                    95
+#define PG0                     96
+#define PG1                     97
+#define PG2                     98
+#define PG3                     99
+#define PG4                     100
+#define PG5                     101
+#define PG6                     102
+#define PG7                     103
+#define PG8                     104
+#define PG9                     105
+#define PG10                    106
+#define PG11                    107
+#define PG12                    108
+#define PG13                    109
+#define PG14                    110
+#define PG15                    111
+#define PH0                     112
+#define PH1                     113
+#define PH2                     PIN_A28
+#define PH3                     PIN_A29
+#define PH4                     PIN_A30
+#define PH5                     PIN_A31
+#define PH6                     118
+#define PH7                     119
+#define PH8                     120
+#define PH9                     121
+#define PH10                    122
+#define PH11                    123
+#define PH12                    124
+#define PH13                    125
+#define PH14                    126
+#define PH15                    127
+#define PI0                     128
+#define PI1                     129
+#define PI2                     130
+#define PI3                     131
+#define PI4                     132
+#define PI5                     133
+#define PI6                     134
+#define PI7                     135
+#define PI8                     136
+#define PI9                     137
+#define PI10                    138
+#define PI11                    139
+#define PI12                    140
+#define PI13                    141
+#define PI14                    142
+#define PI15                    143
+#define PJ0                     144
+#define PJ1                     145
+#define PJ2                     146
+#define PJ3                     147
+#define PJ4                     148
+#define PJ5                     149
+#define PJ6                     150
+#define PJ7                     151
+#define PJ8                     152
+#define PJ9                     153
+#define PJ10                    154
+#define PJ11                    155
+#define PJ12                    156
+#define PJ13                    157
+#define PJ14                    158
+#define PJ15                    159
+#define PK0                     160
+#define PK1                     161
+#define PK2                     162
+#define PK3                     163
+#define PK4                     164
+#define PK5                     165
+#define PK6                     166
+#define PK7                     167
+#define PA0_C                   PIN_A32
+#define PA1_C                   PIN_A33
+#define PC2_C                   PIN_A34
+#define PC3_C                   PIN_A35
 
 // Alternate pins number
-#define PA0_ALT1                        (PA0   | ALT1)
-#define PA0_C_ALT1                      (PA0_C | ALT1)
-#define PA1_C_ALT1                      (PA1_C | ALT1)
-#define PA1_C_ALT2                      (PA1_C | ALT2)
-#define PA4_ALT1                        (PA4   | ALT1)
-#define PA6_ALT1                        (PA6   | ALT1)
-#define PA9_ALT                         (PA9   | ALT1)
-#define PA10_ALT1                       (PA10  | ALT1)
-#define PA11_ALT1                       (PA11  | ALT1)
-#define PA12_ALT1                       (PA12  | ALT1)
-#define PB8_ALT1                        (PB8   | ALT1)
-#define PB9_ALT1                        (PB9   | ALT1)
-#define PB14_ALT1                       (PB14  | ALT1)
-#define PB14_ALT2                       (PB14  | ALT2)
-#define PB15_ALT1                       (PB15  | ALT1)
-#define PB15_ALT2                       (PB15  | ALT2)
-#define PC2_ALT1                        (PC2   | ALT1)
-#define PC2_ALT2                        (PC2   | ALT2)
-#define PC3_ALT1                        (PC3   | ALT1)
-#define PC6_ALT1                        (PC6   | ALT1)
-#define PC7_ALT1                        (PC7   | ALT1)
-#define PC8_ALT1                        (PC8   | ALT1)
-#define PF8_ALT1                        (PF8   | ALT1)
-#define PJ8_ALT1                        (PJ8   | ALT1)
-#define PJ9_ALT1                        (PJ9   | ALT1)
-#define PJ10_ALT1                       (PJ10  | ALT1)
-#define PJ11_ALT1                       (PJ11  | ALT1)
-#define PK0_ALT1                        (PK0   | ALT1)
-#define PK1_ALT1                        (PK1   | ALT1)
+#define PA0_ALT1                (PA0   | ALT1)
+#define PA0_C_ALT1              (PA0_C | ALT1)
+#define PA1_ALT1                (PA1   | ALT1)
+#define PA1_ALT2                (PA1   | ALT2)
+#define PA1_C_ALT1              (PA1_C | ALT1)
+#define PA1_C_ALT2              (PA1_C | ALT2)
+#define PA2_ALT1                (PA2   | ALT1)
+#define PA2_ALT2                (PA2   | ALT2)
+#define PA3_ALT1                (PA3   | ALT1)
+#define PA3_ALT2                (PA3   | ALT2)
+#define PA4_ALT1                (PA4   | ALT1)
+#define PA4_ALT2                (PA4   | ALT2)
+#define PA5_ALT1                (PA5   | ALT1)
+#define PA6_ALT1                (PA6   | ALT1)
+#define PA7_ALT1                (PA7   | ALT1)
+#define PA7_ALT2                (PA7   | ALT2)
+#define PA7_ALT3                (PA7   | ALT3)
+#define PA9_ALT1                (PA9   | ALT1)
+#define PA10_ALT1               (PA10  | ALT1)
+#define PA11_ALT1               (PA11  | ALT1)
+#define PA12_ALT1               (PA12  | ALT1)
+#define PA15_ALT1               (PA15  | ALT1)
+#define PA15_ALT2               (PA15  | ALT2)
+#define PB0_ALT1                (PB0   | ALT1)
+#define PB0_ALT2                (PB0   | ALT2)
+#define PB1_ALT1                (PB1   | ALT1)
+#define PB1_ALT2                (PB1   | ALT2)
+#define PB3_ALT1                (PB3   | ALT1)
+#define PB3_ALT2                (PB3   | ALT2)
+#define PB4_ALT1                (PB4   | ALT1)
+#define PB4_ALT2                (PB4   | ALT2)
+#define PB5_ALT1                (PB5   | ALT1)
+#define PB5_ALT2                (PB5   | ALT2)
+#define PB6_ALT1                (PB6   | ALT1)
+#define PB6_ALT2                (PB6   | ALT2)
+#define PB7_ALT1                (PB7   | ALT1)
+#define PB8_ALT1                (PB8   | ALT1)
+#define PB9_ALT1                (PB9   | ALT1)
+#define PB14_ALT1               (PB14  | ALT1)
+#define PB14_ALT2               (PB14  | ALT2)
+#define PB15_ALT1               (PB15  | ALT1)
+#define PB15_ALT2               (PB15  | ALT2)
+#define PC0_ALT1                (PC0   | ALT1)
+#define PC0_ALT2                (PC0   | ALT2)
+#define PC1_ALT1                (PC1   | ALT1)
+#define PC1_ALT2                (PC1   | ALT2)
+#define PC2_ALT1                (PC2   | ALT1)
+#define PC2_ALT2                (PC2   | ALT2)
+#define PC3_ALT1                (PC3   | ALT1)
+#define PC4_ALT1                (PC4   | ALT1)
+#define PC5_ALT1                (PC5   | ALT1)
+#define PC6_ALT1                (PC6   | ALT1)
+#define PC7_ALT1                (PC7   | ALT1)
+#define PC8_ALT1                (PC8   | ALT1)
+#define PC9_ALT1                (PC9   | ALT1)
+#define PC10_ALT1               (PC10  | ALT1)
+#define PC11_ALT1               (PC11  | ALT1)
+#define PF8_ALT1                (PF8   | ALT1)
+#define PF9_ALT1                (PF9   | ALT1)
+#define PJ8_ALT1                (PJ8   | ALT1)
+#define PJ9_ALT1                (PJ9   | ALT1)
+#define PJ10_ALT1               (PJ10  | ALT1)
+#define PJ11_ALT1               (PJ11  | ALT1)
+#define PK0_ALT1                (PK0   | ALT1)
+#define PK1_ALT1                (PK1   | ALT1)
 
 #define NUM_DIGITAL_PINS        172
 #define NUM_DUALPAD_PINS        4
-#define NUM_ANALOG_INPUTS       6
+#define NUM_ANALOG_INPUTS       36
 
 // On-board LED pin number
-#define LED_GREEN   PI12  //LED1
-#define LED_ORANGE  PI13  //LED2
-#define LED_RED     PI14  //LED3
-#define LED_BLUE    PI15  //LED4
-
 #ifndef LED_BUILTIN
-  #define LED_BUILTIN LED_GREEN
+  #define LED_BUILTIN           PNUM_NOT_DEFINED
 #endif
 
 // On-board user button
 #ifndef USER_BTN
-  #define USER_BTN    PC13    //Wakeup button
+  #define USER_BTN              PNUM_NOT_DEFINED
 #endif
 
-// SPI Definitions are provided by "pins_arduino.h"
-// I2C definitions are provided by "pins_arduino.h"
+// SPI definitions
+#ifndef PIN_SPI_SS
+  #define PIN_SPI_SS            PA4
+#endif
+#ifndef PIN_SPI_SS1
+  #define PIN_SPI_SS1           PA15
+#endif
+#ifndef PIN_SPI_SS2
+  #define PIN_SPI_SS2           PG10
+#endif
+#ifndef PIN_SPI_SS3
+  #define PIN_SPI_SS3           PNUM_NOT_DEFINED
+#endif
+#ifndef PIN_SPI_MOSI
+  #define PIN_SPI_MOSI          PA7
+#endif
+#ifndef PIN_SPI_MISO
+  #define PIN_SPI_MISO          PA6
+#endif
+#ifndef PIN_SPI_SCK
+  #define PIN_SPI_SCK           PA5
+#endif
 
-// UART Definitions
-#ifndef SERIAL_UART_INSTANCE
-  #define SERIAL_UART_INSTANCE  101 //LPUART1 is connected to ST-Link
+// I2C definitions
+#ifndef PIN_WIRE_SDA
+  #define PIN_WIRE_SDA          PB7
+#endif
+#ifndef PIN_WIRE_SCL
+  #define PIN_WIRE_SCL          PB6
 #endif
 
 // Timer Definitions
@@ -289,28 +309,19 @@
   #define TIMER_SERVO           TIM7
 #endif
 
-// Default pin used for generic 'Serial' instance (wired to ST-Link)
+// UART Definitions
+#ifndef SERIAL_UART_INSTANCE
+  #define SERIAL_UART_INSTANCE  4
+#endif
+
+// Default pin used for generic 'Serial' instance
+// Mandatory for Firmata
 #ifndef PIN_SERIAL_RX
-  #define PIN_SERIAL_RX         PA10
+  #define PIN_SERIAL_RX         PA1
 #endif
 #ifndef PIN_SERIAL_TX
-  #define PIN_SERIAL_TX         PA9
+  #define PIN_SERIAL_TX         PA0
 #endif
-
-// SDMMC signals - only define not available,
-// the rest is automatically provided by PeripheralPins
-#define SDMMC_CKIN_NA
-#define SDMMC_CDIR_NA
-#define SDMMC_D0DIR_NA
-#define SDMMC_D123DIR_NA
-
-// SD detect signal
-#ifndef SD_DETECT_PIN
-  #define SD_DETECT_PIN         PI8
-#endif
-
-// HAL configuration
-#define HSE_VALUE               25000000U
 
 // Extra HAL modules
 #if !defined(HAL_DAC_MODULE_DISABLED)
@@ -325,8 +336,6 @@
 #if !defined(HAL_SD_MODULE_DISABLED)
   #define HAL_SD_MODULE_ENABLED
 #endif
-
-#define USE_PWR_DIRECT_SMPS_SUPPLY
 
 /*----------------------------------------------------------------------------
  *        Arduino objects - C++ only
@@ -351,7 +360,6 @@
   #ifndef SERIAL_PORT_MONITOR
     #define SERIAL_PORT_MONITOR   Serial
   #endif
-
   #ifndef SERIAL_PORT_HARDWARE
     #define SERIAL_PORT_HARDWARE  Serial
   #endif

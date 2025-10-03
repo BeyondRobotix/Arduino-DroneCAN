@@ -1,8 +1,8 @@
-
 #ifdef CANH7
 #ifndef CAN_DRIVER
 #define CAN_DRIVER
 #include <canard.h>
+#include "stm32h7xx.h"
 
 enum BITRATE
 {
@@ -14,21 +14,11 @@ enum BITRATE
     CAN_1000KBPS
 };
 
-// struct CAN_msg_t
-// {
-//     uint32_t id;     /* 29 bit identifier                               */
-//     uint8_t data[8]; /* Data field                                      */
-//     uint8_t len;     /* Length of data field in bytes                   */
-//     uint8_t ch;      /* Object channel(Not use)                         */
-//     uint8_t format;  /* 0 - STANDARD, 1- EXTENDED IDENTIFIER            */
-//     uint8_t type;    /* 0 - DATA FRAME, 1 - REMOTE FRAME                */
-// };
-
 struct CAN_bit_timing_config_t
 {
     uint8_t TS2;
     uint8_t TS1;
-    uint8_t BRP;
+    uint16_t BRP;
 };
 
 /* Symbolic names for formats of CAN message                                 */
@@ -45,13 +35,11 @@ enum
     REMOTE_FRAME
 } CAN_FRAME;
 
-extern CAN_bit_timing_config_t can_configs[6];
-
+void CANSetGpio(GPIO_TypeDef *addr, uint8_t index, uint8_t afry, uint8_t speed = 3);
 uint8_t CANMsgAvail(void);
 void CANSend(const CanardCANFrame *CAN_tx_msg);
 void CANReceive(CanardCANFrame *CAN_rx_msg);
-void CANSetFilters(uint16_t *ids, uint8_t num);
-void CANSetFilter(uint16_t id);
+void CANSetFilter(uint8_t index, uint8_t fifo, uint32_t id, uint32_t mask);
 bool CANInit(BITRATE bitrate, int remap);
 
 #endif // CAN_DRIVER
