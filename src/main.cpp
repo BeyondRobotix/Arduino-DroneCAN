@@ -1,9 +1,13 @@
+#define CANARD_ENABLE_CANFD 1
+#define CANARD_ENABLE_TAO_OPTION 0
+
 #include <Arduino.h>
 #include <dronecan.h>
 #include <IWatchdog.h>
 #include <app.h>
 #include <vector>
 #include <simple_dronecanmessages.h>
+
 
 // set up your parameters here with default values. NODEID should be kept
 std::vector<DroneCAN::parameter> custom_parameters = {

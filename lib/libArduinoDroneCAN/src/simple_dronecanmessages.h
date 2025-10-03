@@ -36,7 +36,11 @@ void sendUavcanMsg(CanardInstance &ins,
                     &transfer_id,
                     priority,
                     buffer,
-                    len);
+                    len
+#if CANARD_ENABLE_CANFD
+                        ,true                      ///< Is the frame canfd
+#endif
+                );
 
     // advance for next time (wraps 0→255→0 automatically)
     ++transfer_id;

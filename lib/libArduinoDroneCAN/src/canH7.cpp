@@ -24,10 +24,10 @@ void printRegister(const char *buf, uint32_t reg)
 #define FDCAN_ELEMENT_SIZE_WORDS 4 // In words for 8-byte data payload
 #endif
 
-#define FDCAN_MAX_STD_FILTERS 28
-#define FDCAN_MAX_EXT_FILTERS 8
+#define FDCAN_MAX_STD_FILTERS 78
+#define FDCAN_MAX_EXT_FILTERS 40
 #define FDCAN_RX_FIFO0_ELEMENTS 8
-#define FDCAN_TX_BUFFER_ELEMENTS 4
+#define FDCAN_TX_BUFFER_ELEMENTS 7
 
 static uint32_t FDCAN_message_ram_offset = 0;
 struct
