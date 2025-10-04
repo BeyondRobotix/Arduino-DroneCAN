@@ -1,8 +1,8 @@
 {
   "build": {
     "cpu": "cortex-m7",
-    "extra_flags": "-DSTM32H7 -DSTM32H7xx -DSTM32H743xx",
-    "f_cpu": "400000000L",
+    "extra_flags": "-DSTM32H7xx -DSTM32H743xx",
+    "f_cpu": "480000000L",
     "mcu": "stm32h743xih6",
     "product_line": "STM32H743xx",
     "variant": "CoreNode"

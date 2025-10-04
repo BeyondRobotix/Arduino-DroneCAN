@@ -1,4 +1,4 @@
-#define CANARD_ENABLE_CANFD 1
+#define CANARD_ENABLE_CANFD 0
 #define CANARD_ENABLE_TAO_OPTION 0
 
 #include <Arduino.h>
@@ -82,6 +82,7 @@ void setup()
     app_setup();
     IWatchdog.begin(2000000); 
     Serial.begin(115200);
+    Serial.println("Starting!");
     dronecan.version_major = 1;
     dronecan.version_minor = 0;
     dronecan.init(

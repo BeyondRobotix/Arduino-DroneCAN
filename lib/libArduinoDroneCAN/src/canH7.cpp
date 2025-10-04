@@ -167,6 +167,12 @@ void CANSetGpio(GPIO_TypeDef *addr, uint8_t index, uint8_t afry, uint8_t speed)
     addr->AFR[afr_idx] = afr;
 }
 
+void _CANSetFilter(uint8_t index, uint8_t fifo, uint32_t id, uint32_t mask)
+{
+    uint32_t filter_element = (((fifo == 0) ? 1U : 2U) << 30) | (2U << 27) | ((id & 0x7FF) << 16) | (mask & 0x7FF);
+    ((uint32_t *)MessageRam.StandardFilterSA)[index] = filter_element;
+}
+
 void CANSetFilter(uint8_t index, uint8_t fifo, uint32_t id, uint32_t mask)
 {
     if (index >= FDCAN_MAX_STD_FILTERS)
@@ -182,13 +188,26 @@ void CANSetFilter(uint8_t index, uint8_t fifo, uint32_t id, uint32_t mask)
     Serial.println(mask, HEX);
 #endif
     FDCAN1->CCCR |= FDCAN_CCCR_INIT;
-    for (volatile int i = 0; !(FDCAN1->CCCR & FDCAN_CCCR_INIT) && i < 10000; i++)
-        ;
+    uint32_t start_ms = millis();
+    while (!(FDCAN1->CCCR & FDCAN_CCCR_INIT))
+    {
+        if (millis() - start_ms > 100) {
+            return; // Timeout
+        }
+    }
     FDCAN1->CCCR |= FDCAN_CCCR_CCE;
-    uint32_t filter_element = (((fifo == 0) ? 1U : 2U) << 30) | (2U << 27) | ((id & 0x7FF) << 16) | (mask & 0x7FF);
-    ((uint32_t *)MessageRam.StandardFilterSA)[index] = filter_element;
+
+    _CANSetFilter(index, fifo, id, mask);
+
     FDCAN1->CCCR &= ~FDCAN_CCCR_CCE;
     FDCAN1->CCCR &= ~FDCAN_CCCR_INIT;
+    start_ms = millis();
+    while ((FDCAN1->CCCR & FDCAN_CCCR_INIT))
+    {
+        if (millis() - start_ms > 100) {
+            return; // Timeout
+        }
+    }
 }
 
 uint8_t CANMsgAvail(void) { return (FDCAN1->RXF0S & FDCAN_RXF0S_F0FL); }
@@ -265,28 +284,37 @@ bool CANInit(uint32_t bitrate, int remap)
 #if DEBUG
     Serial.println("CANInit H7");
 #endif
+
     RCC->APB1HENR |= RCC_APB1HENR_FDCANEN;
     RCC->APB1HRSTR |= RCC_APB1HRSTR_FDCANRST;
     RCC->APB1HRSTR &= ~RCC_APB1HRSTR_FDCANRST;
+
     if (remap == 0)
     {
         CANSetGpio(GPIOA, 11, 9);
         CANSetGpio(GPIOA, 12, 9);
-#if DEBUG
-        Serial.println("Set GPIOA11, GPIOA12");
-#endif
+
+    }
+    else if (remap == 1)
+    {
+        CANSetGpio(GPIOH, 14, 9);
+        CANSetGpio(GPIOD, 1, 9);
     }
 
     FDCAN1->CCCR |= FDCAN_CCCR_INIT;
-    for (volatile int i = 0; !(FDCAN1->CCCR & FDCAN_CCCR_INIT) && i < 10000; i++)
-        ;
-    if (!(FDCAN1->CCCR & FDCAN_CCCR_INIT))
+    uint32_t start_ms = millis();
+    while (!(FDCAN1->CCCR & FDCAN_CCCR_INIT))
     {
+        if (millis() - start_ms > 100) {
 #if DEBUG
-        Serial.println("Failed to enter init mode");
+            Serial.println("Failed to enter init mode");
 #endif
-        return false;
+            return false;
+        }
     }
+#if DEBUG
+    Serial.println("Entered init mode.");
+#endif
 
 #if CANARD_ENABLE_CANFD
     FDCAN1->CCCR |= FDCAN_CCCR_CCE | FDCAN_CCCR_FDOE | FDCAN_CCCR_BRSE;
@@ -299,6 +327,7 @@ bool CANInit(uint32_t bitrate, int remap)
         return false;
     }
     FDCAN1->DBTP = ((d_timings.SJW - 1) << 16) | ((d_timings.TS1 - 1) << 8) | ((d_timings.TS2 - 1) << 4) | (d_timings.BRP - 1);
+    FDCAN1->TDCR = 10 << FDCAN_TDCR_TDCO_Pos; // Transmitter Delay Compensation
 #if DEBUG
     printRegister("DBTP: ", FDCAN1->DBTP);
 #endif
@@ -327,6 +356,7 @@ bool CANInit(uint32_t bitrate, int remap)
     FDCAN1->NBTP = ((n_timings.SJW - 1) << 25) | ((n_timings.TS1 - 1) << 16) | ((n_timings.TS2 - 1) << 8) | (n_timings.BRP - 1);
 #if DEBUG
     printRegister("NBTP: ", FDCAN1->NBTP);
+    Serial.println("Bit timings set.");
 #endif
 
 #if CANARD_ENABLE_CANFD
@@ -347,13 +377,31 @@ bool CANInit(uint32_t bitrate, int remap)
     FDCAN_message_ram_offset += FDCAN_RX_FIFO0_ELEMENTS * FDCAN_ELEMENT_SIZE_WORDS;
     FDCAN1->TXBC = (FDCAN_message_ram_offset << 2) | (FDCAN_TX_BUFFER_ELEMENTS << 24);
     MessageRam.TxFIFOQSA = SRAMCAN_BASE + (FDCAN_message_ram_offset * 4U);
+#if DEBUG
+    Serial.println("Message RAM configured.");
+#endif
 
     FDCAN1->GFC = (0x02 << 4) | 0x01; // Accept non-matching standard into FIFO0, reject extended
-    CANSetFilter(0, 0, 0x0, 0x0);     // Default accept-all filter
+    _CANSetFilter(0, 0, 0x0, 0x0);     // Default accept-all filter
+#if DEBUG
+    Serial.println("Default filter set.");
+#endif
 
     FDCAN1->CCCR &= ~(FDCAN_CCCR_CCE | FDCAN_CCCR_INIT);
-    for (volatile int i = 0; (FDCAN1->CCCR & FDCAN_CCCR_INIT) && i < 10000; i++)
-        ;
+#if DEBUG
+    Serial.println("Attempting to exit init mode...");
+#endif
+    start_ms = millis();
+    while ((FDCAN1->CCCR & FDCAN_CCCR_INIT))
+    {
+        FDCAN1->CCCR &= ~(FDCAN_CCCR_CCE | FDCAN_CCCR_INIT);
+        if (millis() - start_ms > 100) {
+#if DEBUG
+            Serial.println("CANInit H7 failed to exit init mode.");
+#endif
+            return false;
+        }
+    }
     
     bool success = !(FDCAN1->CCCR & FDCAN_CCCR_INIT);
 #if DEBUG

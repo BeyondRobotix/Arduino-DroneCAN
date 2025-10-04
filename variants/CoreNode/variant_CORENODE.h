@@ -317,10 +317,10 @@
 // Default pin used for generic 'Serial' instance
 // Mandatory for Firmata
 #ifndef PIN_SERIAL_RX
-  #define PIN_SERIAL_RX         PA1
+  #define PIN_SERIAL_RX         PE0
 #endif
 #ifndef PIN_SERIAL_TX
-  #define PIN_SERIAL_TX         PA0
+  #define PIN_SERIAL_TX         PE1
 #endif
 
 // Extra HAL modules
