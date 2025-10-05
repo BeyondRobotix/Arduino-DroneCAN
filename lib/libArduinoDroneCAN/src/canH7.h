@@ -1,97 +1,85 @@
-#ifdef CANH7
-#ifndef CAN_DRIVER_H7_
-#define CAN_DRIVER_H7_
+#ifndef CANH7_COMPATIBLE_H
+#define CANH7_COMPATIBLE_H
 
-#include "stm32h7xx.h"
-#include "canard.h" // Use canard's native frame definition
+// Assume standard H7 HAL includes and canard.h are available in your build system
+#include "stm32h7xx_hal.h"
+#include "stm32h7xx_hal_fdcan.h"
+#include <canard.h> // Required for CanardCANFrame
+#include "Arduino.h"
 
-/**
- * @brief Configures the GPIO pins for the CAN peripheral.
- */
-void CANSetGpio(GPIO_TypeDef *addr, uint8_t index, uint8_t afry, uint8_t speed = 3);
-
-/**
- * @brief Checks if a message is available in the receive FIFO.
- * @return Number of messages available.
- */
-uint8_t CANMsgAvail(void);
-
-/**
- * @brief Sends a CAN frame.
- * The frame format (Classic vs FD) is determined by the CanardCANFrame struct.
- */
-void CANSend(const CanardCANFrame *tx_frame);
-
-/**
- * @brief Receives a CAN frame.
- * Populates the CanardCANFrame struct with the received data.
- */
-void CANReceive(CanardCANFrame *rx_frame);
-
-/**
- * @brief Configures a single standard ID filter.
- */
-void CANSetFilter(uint8_t index, uint8_t fifo, uint32_t id, uint32_t mask);
-
-enum CAN_BITRATE
+// --- Types from canL431.h ---
+enum BITRATE
 {
     CAN_50KBPS,
     CAN_100KBPS,
     CAN_125KBPS,
     CAN_250KBPS,
     CAN_500KBPS,
-    CAN_1000KBPS,
-    // CAN FD bitrates
-    CAN_FD_500KBPS_2000KBPS,
-    CAN_FD_1000KBPS_2000KBPS,
-    CAN_FD_1000KBPS_4000KBPS,
-    CAN_FD_1000KBPS_8000KBPS,
+    CAN_1000KBPS
 };
 
-#if CANARD_ENABLE_CANFD
-/**
- * @brief Initializes the FDCAN peripheral with support for CAN FD using a bitrate enum.
- * @param bitrate The bitrate for the CAN bus (nominal and data).
- * @param remap   GPIO remapping index.
- */
-bool CANInit(CAN_BITRATE bitrate, int remap);
-
-/**
- * @brief Initializes the FDCAN peripheral with support for CAN FD.
- * @param nominal_bitrate The bitrate for the arbitration phase (e.g., 1000000 for 1Mbps).
- * @param data_bitrate    The bitrate for the data phase (e.g., 8000000 for 8Mbps).
- * @param remap           GPIO remapping index.
- */
-bool CANInit(uint32_t nominal_bitrate, uint32_t data_bitrate, int remap);
-#else
-/**
- * @brief Initializes the FDCAN peripheral for Classic CAN operation only using a bitrate enum.
- * @param bitrate The bitrate for the CAN bus.
- * @param remap   GPIO remapping index.
- */
-bool CANInit(CAN_BITRATE bitrate, int remap);
-
-/**
- * @brief Initializes the FDCAN peripheral for Classic CAN operation only.
- * @param bitrate The bitrate for the CAN bus (e.g., 1000000 for 1Mbps).
- * @param remap   GPIO remapping index.
- */
-bool CANInit(uint32_t bitrate, int remap);
-#endif
-
-struct Timings
+struct CAN_bit_timing_config_t
 {
-    uint16_t sample_point_permill;
-    uint16_t prescaler;
-    uint8_t sjw;
-    uint8_t bs1;
-    uint8_t bs2;
-
-    Timings()
-        : sample_point_permill(0), prescaler(0), sjw(0), bs1(0), bs2(0)
-    {
-    }
+    uint8_t TS2;
+    uint8_t TS1;
+    uint8_t BRP;
 };
 
-#endif // CAN_DRIVER_H7_
-#endif // CANH7
+enum CAN_FORMAT
+{
+    STANDARD_FORMAT = 0,
+    EXTENDED_FORMAT
+};
+
+enum CAN_TYPE
+{
+    DATA_FRAME = 0,
+    REMOTE_FRAME
+};
+
+// --- Global HAL Handle (For use by interrupt handlers) ---
+extern FDCAN_HandleTypeDef hfdcan1;
+
+// --- Function Prototypes (Matching existing API) ---
+
+/**
+ * @brief Initializes the FDCAN peripheral in Classic CAN mode (8-byte payload).
+ * @param bitrate The desired communication bitrate.
+ * @param remap Placeholder for GPIO remap (handled in HAL_FDCAN_MspInit).
+ * @retval true on success, false on failure.
+ */
+bool CANInit(enum BITRATE bitrate, int remap);
+
+/**
+ * @brief Sends a CAN message.
+ * @param CAN_tx_msg Pointer to the CanardCANFrame structure containing the message.
+ */
+void CANSend(const CanardCANFrame *CAN_tx_msg);
+
+/**
+ * @brief Retrieves a received CAN message from Rx FIFO 0.
+ * @param CAN_rx_msg Pointer to the CanardCANFrame structure to hold the received message.
+ */
+void CANReceive(CanardCANFrame *CAN_rx_msg);
+
+/**
+ * @brief Checks if a message is available in Rx FIFO 0.
+ * @retval Number of available messages (0 to 8).
+ */
+uint8_t CANMsgAvail(void);
+
+/**
+ * @brief Configures a single filter to accept a standard or extended ID.
+ * @param id The ID to filter on.
+ */
+void CANSetFilter(uint16_t id);
+
+/**
+ * @brief Configures multiple filters (deprecated, only uses the first ID).
+ * @param ids Array of IDs to filter on.
+ * @param num Number of IDs in the array.
+ */
+void CANSetFilters(uint16_t *ids, uint8_t num);
+
+
+#endif // CANH7_COMPATIBLE_H
