@@ -41,6 +41,7 @@
         "stdexcept": "cpp",
         "streambuf": "cpp",
         "cinttypes": "cpp",
-        "typeinfo": "cpp"
+        "typeinfo": "cpp",
+        "stm32h7xx_hal_fdcan.h": "c"
     }
 }

@@ -5,6 +5,8 @@
 
 #define DEBUG 1
 
+#define SRAMCAN_BASE 0x4000AC00U
+
 #if DEBUG
 void printRegister(const char *buf, uint32_t reg)
 {
@@ -29,14 +31,18 @@ void printRegister(const char *buf, uint32_t reg)
 #define FDCAN_RX_FIFO0_ELEMENTS 8
 #define FDCAN_TX_BUFFER_ELEMENTS 7
 
+#define MAX_FILTER_LIST_SIZE 78U       // 78 element Standard Filter List elements or 40 element Extended Filter List
+#define FDCAN_NUM_RXFIFO0_SIZE 108U    // 6 Frames
+#define FDCAN_TX_FIFO_BUFFER_SIZE 126U // 7 Frames
+#define MESSAGE_RAM_END_ADDR 0x4000B5FC
+#define FDCAN_FRAME_BUFFER_SIZE 18
+
+#undef MIN
+#undef MAX
+#define MIN(a, b) (((a) < (b)) ? (a) : (b))
+#define MAX(a, b) (((a) > (b)) ? (a) : (b))
+
 static uint32_t FDCAN_message_ram_offset = 0;
-struct
-{
-    uint32_t StandardFilterSA;
-    uint32_t ExtendedFilterSA;
-    uint32_t RxFIFO0SA;
-    uint32_t TxFIFOQSA;
-} MessageRam;
 
 // --- Helper Functions & Structs ---
 struct CAN_bit_timing_config_t
@@ -46,6 +52,16 @@ struct CAN_bit_timing_config_t
     uint8_t TS2;
     uint8_t SJW;
 };
+
+struct MessageRAM
+{
+    uint32_t StandardFilterSA;
+    uint32_t ExtendedFilterSA;
+    uint32_t RxFIFO0SA;
+    uint32_t RxFIFO1SA;
+    uint32_t TxFIFOQSA;
+    uint32_t EndAddress;
+} MessageRam_;
 
 #if CANARD_ENABLE_CANFD
 static const uint8_t dlc_to_len[16] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 12, 16, 20, 24, 32, 48, 64};
@@ -74,34 +90,139 @@ static uint8_t lenToDlc(uint8_t len) { return len; }
 #endif
 
 // --- Timing Calculation (implementation details) ---
-static bool compute_timings(const uint32_t target_bitrate, CAN_bit_timing_config_t &out_timings)
+bool computeTimings(const uint32_t target_bitrate, Timings &out_timings)
 {
     if (target_bitrate < 1)
-        return false;
-    const uint32_t pclk = 80000000; // Assuming 80MHz FDCAN clock
-    const int max_quanta_per_bit = (target_bitrate >= 1000000) ? 10 : 17;
-    const uint32_t prescaler_bs = pclk / target_bitrate;
-    for (uint8_t bs = max_quanta_per_bit; bs > 2; bs--)
     {
-        if ((prescaler_bs % bs) == 0)
-        {
-            const uint32_t prescaler = prescaler_bs / bs;
-            if ((prescaler > 0) && (prescaler <= 512))
-            {
-                uint8_t bs1 = (bs * 7) / 8 - 1;
-                uint8_t bs2 = bs - bs1 - 1;
-                if (bs1 > 0 && bs1 <= 255 && bs2 > 0 && bs2 <= 128)
-                {
-                    out_timings.BRP = (uint16_t)prescaler;
-                    out_timings.TS1 = bs1;
-                    out_timings.TS2 = bs2;
-                    out_timings.SJW = bs2 > 1 ? bs2 / 2 : 1;
-                    return true;
-                }
-            }
-        }
+        return false;
     }
-    return false;
+
+    /*
+     * Hardware configuration
+     */
+    const uint32_t pclk = 80U * 1000U * 1000U;
+
+    static const int MaxBS1 = 16;
+    static const int MaxBS2 = 8;
+
+    /*
+     * Ref. "Automatic Baudrate Detection in CANopen Networks", U. Koppe, MicroControl GmbH & Co. KG
+     *      CAN in Automation, 2003
+     *
+     * According to the source, optimal quanta per bit are:
+     *   Bitrate        Optimal Maximum
+     *   1000 kbps      8       10
+     *   500  kbps      16      17
+     *   250  kbps      16      17
+     *   125  kbps      16      17
+     */
+    const int max_quanta_per_bit = (target_bitrate >= 1000000) ? 10 : 17;
+
+    static const int MaxSamplePointLocation = 900;
+
+    /*
+     * Computing (prescaler * BS):
+     *   BITRATE = 1 / (PRESCALER * (1 / PCLK) * (1 + BS1 + BS2))       -- See the Reference Manual
+     *   BITRATE = PCLK / (PRESCALER * (1 + BS1 + BS2))                 -- Simplified
+     * let:
+     *   BS = 1 + BS1 + BS2                                             -- Number of time quanta per bit
+     *   PRESCALER_BS = PRESCALER * BS
+     * ==>
+     *   PRESCALER_BS = PCLK / BITRATE
+     */
+    const uint32_t prescaler_bs = pclk / target_bitrate;
+
+    /*
+     * Searching for such prescaler value so that the number of quanta per bit is highest.
+     */
+    uint8_t bs1_bs2_sum = uint8_t(max_quanta_per_bit - 1);
+
+    while ((prescaler_bs % (1 + bs1_bs2_sum)) != 0)
+    {
+        if (bs1_bs2_sum <= 2)
+        {
+            return false; // No solution
+        }
+        bs1_bs2_sum--;
+    }
+
+    const uint32_t prescaler = prescaler_bs / (1 + bs1_bs2_sum);
+    if ((prescaler < 1U) || (prescaler > 1024U))
+    {
+        return false; // No solution
+    }
+
+    /*
+     * Now we have a constraint: (BS1 + BS2) == bs1_bs2_sum.
+     * We need to find the values so that the sample point is as close as possible to the optimal value.
+     *
+     *   Solve[(1 + bs1)/(1 + bs1 + bs2) == 7/8, bs2]  (* Where 7/8 is 0.875, the recommended sample point location *)
+     *   {{bs2 -> (1 + bs1)/7}}
+     *
+     * Hence:
+     *   bs2 = (1 + bs1) / 7
+     *   bs1 = (7 * bs1_bs2_sum - 1) / 8
+     *
+     * Sample point location can be computed as follows:
+     *   Sample point location = (1 + bs1) / (1 + bs1 + bs2)
+     *
+     * Since the optimal solution is so close to the maximum, we prepare two solutions, and then pick the best one:
+     *   - With rounding to nearest
+     *   - With rounding to zero
+     */
+    struct BsPair
+    {
+        uint8_t bs1;
+        uint8_t bs2;
+        uint16_t sample_point_permill;
+
+        BsPair() : bs1(0),
+                   bs2(0),
+                   sample_point_permill(0)
+        {
+        }
+
+        BsPair(uint8_t bs1_bs2_sum, uint8_t arg_bs1) : bs1(arg_bs1),
+                                                       bs2(uint8_t(bs1_bs2_sum - bs1)),
+                                                       sample_point_permill(uint16_t(1000 * (1 + bs1) / (1 + bs1 + bs2)))
+        {
+        }
+
+        bool isValid() const
+        {
+            return (bs1 >= 1) && (bs1 <= MaxBS1) && (bs2 >= 1) && (bs2 <= MaxBS2);
+        }
+    };
+
+    // First attempt with rounding to nearest
+    BsPair solution(bs1_bs2_sum, uint8_t(((7 * bs1_bs2_sum - 1) + 4) / 8));
+
+    if (solution.sample_point_permill > MaxSamplePointLocation)
+    {
+        // Second attempt with rounding to zero
+        solution = BsPair(bs1_bs2_sum, uint8_t((7 * bs1_bs2_sum - 1) / 8));
+    }
+
+    /*
+     * Final validation
+     * Helpful Python:
+     * def sample_point_from_btr(x):
+     *     assert 0b0011110010000000111111000000000 & x == 0
+     *     ts2,ts1,brp = (x>>20)&7, (x>>16)&15, x&511
+     *     return (1+ts1+1)/(1+ts1+1+ts2+1)
+     *
+     */
+    if ((target_bitrate != (pclk / (prescaler * (1 + solution.bs1 + solution.bs2)))) || !solution.isValid())
+    {
+        return false;
+    }
+
+    out_timings.sample_point_permill = solution.sample_point_permill;
+    out_timings.prescaler = uint16_t(prescaler);
+    out_timings.sjw = 1;
+    out_timings.bs1 = uint8_t(solution.bs1);
+    out_timings.bs2 = uint8_t(solution.bs2);
+    return true;
 }
 
 #if CANARD_ENABLE_CANFD
@@ -136,78 +257,71 @@ static bool compute_fd_timings(const uint32_t target_bitrate, CAN_bit_timing_con
 }
 #endif
 
-// --- Driver Functions ---
+/**
+ * @brief Configures a GPIO pin for an Alternate Function (e.g., for CAN).
+ * @param addr  Pointer to the GPIO port (e.g., GPIOD).
+ * @param index The pin number (0-15).
+ * @param afry  The alternate function number to set (e.g., 9 for FDCAN1).
+ * @param speed The GPIO speed (e.g., 3 for Very High Speed).
+ */
 void CANSetGpio(GPIO_TypeDef *addr, uint8_t index, uint8_t afry, uint8_t speed)
 {
-    if (addr == GPIOA)
-        RCC->AHB4ENR |= RCC_AHB4ENR_GPIOAEN;
-    else if (addr == GPIOB)
-        RCC->AHB4ENR |= RCC_AHB4ENR_GPIOBEN;
-    else if (addr == GPIOC)
-        RCC->AHB4ENR |= RCC_AHB4ENR_GPIOCEN;
-    else if (addr == GPIOD)
-        RCC->AHB4ENR |= RCC_AHB4ENR_GPIODEN;
-    else if (addr == GPIOE)
-        RCC->AHB4ENR |= RCC_AHB4ENR_GPIOEEN;
-    uint32_t moder = addr->MODER;
-    moder &= ~(3U << (index * 2));
-    moder |= (2U << (index * 2));
-    addr->MODER = moder;
+    // 1. Enable the clock for the given GPIO Port
+    if (addr == GPIOA) RCC->AHB4ENR |= RCC_AHB4ENR_GPIOAEN;
+    else if (addr == GPIOB) RCC->AHB4ENR |= RCC_AHB4ENR_GPIOBEN;
+    else if (addr == GPIOC) RCC->AHB4ENR |= RCC_AHB4ENR_GPIOCEN;
+    else if (addr == GPIOD) RCC->AHB4ENR |= RCC_AHB4ENR_GPIODEN;
+    else if (addr == GPIOE) RCC->AHB4ENR |= RCC_AHB4ENR_GPIOEEN;
+    else if (addr == GPIOF) RCC->AHB4ENR |= RCC_AHB4ENR_GPIOFEN;
+    else if (addr == GPIOG) RCC->AHB4ENR |= RCC_AHB4ENR_GPIOGEN;
+    else if (addr == GPIOH) RCC->AHB4ENR |= RCC_AHB4ENR_GPIOHEN;
+
+    // 2. Set Pin Mode to Alternate Function (binary 10)
+    addr->MODER &= ~(3U << (index * 2)); // Clear the two mode bits for the pin
+    addr->MODER |=  (2U << (index * 2)); // Set mode to Alternate Function
+
+    // 3. Set Output Type to Push-Pull (binary 0)
     addr->OTYPER &= ~(1U << index);
-    uint32_t ospeedr = addr->OSPEEDR;
-    ospeedr &= ~(3U << (index * 2));
-    ospeedr |= (speed << (index * 2));
-    addr->OSPEEDR = ospeedr;
+
+    // 4. Set Pin Speed
+    addr->OSPEEDR &= ~(3U << (index * 2)); // Clear the two speed bits
+    addr->OSPEEDR |=  (speed << (index * 2)); // Set the desired speed
+
+    // 5. Set Pull-up/Pull-down to None (binary 00)
+    // This is typical for CAN, as the transceiver handles the bus state.
     addr->PUPDR &= ~(3U << (index * 2));
-    uint8_t afr_idx = (index < 8) ? 0 : 1;
-    uint32_t afr_shift = (index % 8) * 4;
-    uint32_t afr = addr->AFR[afr_idx];
-    afr &= ~(0xFU << afr_shift);
-    afr |= (afry << afr_shift);
-    addr->AFR[afr_idx] = afr;
+
+    // 6. Set the Alternate Function number
+    uint8_t afr_register_index = (index < 8) ? 0 : 1; // Pins 0-7 use AFR[0], 8-15 use AFR[1]
+    uint8_t afr_shift = (index % 8) * 4;           // Each pin's AF setting is 4 bits wide
+
+    addr->AFR[afr_register_index] &= ~(0xFU << afr_shift); // Clear the 4 bits for our pin
+    addr->AFR[afr_register_index] |=  (afry << afr_shift); // Set the AF number (e.g., AF9)
 }
 
 void _CANSetFilter(uint8_t index, uint8_t fifo, uint32_t id, uint32_t mask)
 {
-    uint32_t filter_element = (((fifo == 0) ? 1U : 2U) << 30) | (2U << 27) | ((id & 0x7FF) << 16) | (mask & 0x7FF);
-    ((uint32_t *)MessageRam.StandardFilterSA)[index] = filter_element;
+    // Correct format for Standard ID Filter Element (SFE):
+    // [31:30] SFT: Standard Filter Type (0b10 = Classic filter with ID + mask)
+    // [29:27] SFEC: Standard Filter Element Configuration (0b001 = Store in FIFO 0)
+    // [26:16] SFID1: Standard Filter ID 1
+    // [15:0]  SFID2: Standard Filter ID 2 (used as the mask in a classic filter)
+
+    uint32_t filter_element = (2U << 30) |                      // SFT: Set as "Classic" filter type
+                              (((fifo == 0) ? 1U : 2U) << 27) | // SFEC: Store in the selected FIFO
+                              ((id & 0x7FF) << 16) |            // SFID1: The filter ID
+                              (mask & 0x7FF);                   // SFID2: The filter mask
+
+    // Write the correctly formatted element to the Message RAM
+    ((uint32_t *)MessageRam_.StandardFilterSA)[index] = filter_element;
 }
 
 void CANSetFilter(uint8_t index, uint8_t fifo, uint32_t id, uint32_t mask)
 {
     if (index >= FDCAN_MAX_STD_FILTERS)
         return;
-#if DEBUG
-    Serial.print("CANSetFilter H7: index=");
-    Serial.print(index);
-    Serial.print(" fifo=");
-    Serial.print(fifo);
-    Serial.print(" id=0x");
-    Serial.print(id, HEX);
-    Serial.print(" mask=0x");
-    Serial.println(mask, HEX);
-#endif
-    FDCAN1->CCCR |= FDCAN_CCCR_INIT;
-    uint32_t start_ms = millis();
-    while (!(FDCAN1->CCCR & FDCAN_CCCR_INIT))
-    {
-        if (millis() - start_ms > 100) {
-            return; // Timeout
-        }
-    }
-    FDCAN1->CCCR |= FDCAN_CCCR_CCE;
 
     _CANSetFilter(index, fifo, id, mask);
-
-    FDCAN1->CCCR &= ~FDCAN_CCCR_CCE;
-    FDCAN1->CCCR &= ~FDCAN_CCCR_INIT;
-    start_ms = millis();
-    while ((FDCAN1->CCCR & FDCAN_CCCR_INIT))
-    {
-        if (millis() - start_ms > 100) {
-            return; // Timeout
-        }
-    }
 }
 
 uint8_t CANMsgAvail(void) { return (FDCAN1->RXF0S & FDCAN_RXF0S_F0FL); }
@@ -225,7 +339,7 @@ void CANSend(const CanardCANFrame *tx_frame)
     }
 
     uint32_t index = (FDCAN1->TXFQS & FDCAN_TXFQS_TFQPI) >> FDCAN_TXFQS_TFQPI_Pos;
-    uint32_t *buffer = (uint32_t *)(MessageRam.TxFIFOQSA + (index * FDCAN_ELEMENT_SIZE_WORDS * 4));
+    uint32_t *buffer = (uint32_t *)(MessageRam_.TxFIFOQSA + (index * FDCAN_ELEMENT_SIZE_WORDS * 4));
 
     buffer[0] = (tx_frame->id & CANARD_CAN_FRAME_EFF) ? (1U << 30) | (tx_frame->id & CANARD_CAN_EXT_ID_MASK) : (tx_frame->id & CANARD_CAN_STD_ID_MASK) << 18;
     buffer[1] = (uint32_t)lenToDlc(tx_frame->data_len) << 16;
@@ -255,7 +369,7 @@ void CANReceive(CanardCANFrame *rx_frame)
     }
 
     uint32_t index = (FDCAN1->RXF0S & FDCAN_RXF0S_F0GI) >> FDCAN_RXF0S_F0GI_Pos;
-    uint32_t *frame_ptr = (uint32_t *)(MessageRam.RxFIFO0SA + (index * FDCAN_ELEMENT_SIZE_WORDS * 4));
+    uint32_t *frame_ptr = (uint32_t *)(MessageRam_.RxFIFO0SA + (index * FDCAN_ELEMENT_SIZE_WORDS * 4));
 
     uint32_t r0 = frame_ptr[0], r1 = frame_ptr[1];
     rx_frame->id = (r0 & (1U << 30)) ? (r0 & CANARD_CAN_EXT_ID_MASK) | CANARD_CAN_FRAME_EFF : (r0 >> 18) & CANARD_CAN_STD_ID_MASK;
@@ -281,140 +395,146 @@ bool CANInit(uint32_t nominal_bitrate, uint32_t data_bitrate, int remap)
 bool CANInit(uint32_t bitrate, int remap)
 {
 #endif
-#if DEBUG
-    Serial.println("CANInit H7");
-#endif
 
     RCC->APB1HENR |= RCC_APB1HENR_FDCANEN;
     RCC->APB1HRSTR |= RCC_APB1HRSTR_FDCANRST;
     RCC->APB1HRSTR &= ~RCC_APB1HRSTR_FDCANRST;
 
-    if (remap == 0)
+    if (remap == 2)
     {
-        CANSetGpio(GPIOA, 11, 9);
-        CANSetGpio(GPIOA, 12, 9);
-
-    }
-    else if (remap == 1)
-    {
-        CANSetGpio(GPIOH, 14, 9);
-        CANSetGpio(GPIOD, 1, 9);
+        CANSetGpio(GPIOH, 14, 9, 3);
+        CANSetGpio(GPIOD, 1, 9, 3);
     }
 
-    FDCAN1->CCCR |= FDCAN_CCCR_INIT;
+    FDCAN1->CCCR &= ~FDCAN_CCCR_CSR; // exit sleep mode
     uint32_t start_ms = millis();
-    while (!(FDCAN1->CCCR & FDCAN_CCCR_INIT))
+    while ((FDCAN1->CCCR & FDCAN_CCCR_CSA) == FDCAN_CCCR_CSA)
     {
-        if (millis() - start_ms > 100) {
-#if DEBUG
-            Serial.println("Failed to enter init mode");
-#endif
+        if (millis() - start_ms > 100)
+        {
             return false;
         }
-    }
-#if DEBUG
-    Serial.println("Entered init mode.");
-#endif
+    } // wait for wake up ack
 
-#if CANARD_ENABLE_CANFD
-    FDCAN1->CCCR |= FDCAN_CCCR_CCE | FDCAN_CCCR_FDOE | FDCAN_CCCR_BRSE;
-    CAN_bit_timing_config_t d_timings;
-    if (!compute_fd_timings(data_bitrate, d_timings))
-    {
-#if DEBUG
-        Serial.println("Failed to compute data timings");
-#endif
-        return false;
-    }
-    FDCAN1->DBTP = ((d_timings.SJW - 1) << 16) | ((d_timings.TS1 - 1) << 8) | ((d_timings.TS2 - 1) << 4) | (d_timings.BRP - 1);
-    FDCAN1->TDCR = 10 << FDCAN_TDCR_TDCO_Pos; // Transmitter Delay Compensation
-#if DEBUG
-    printRegister("DBTP: ", FDCAN1->DBTP);
-#endif
-#else
-    FDCAN1->CCCR |= FDCAN_CCCR_CCE;
-#endif
-
-    CAN_bit_timing_config_t n_timings;
-#if CANARD_ENABLE_CANFD
-    if (!compute_timings(nominal_bitrate, n_timings))
-    {
-#if DEBUG
-        Serial.println("Failed to compute nominal timings");
-#endif
-        return false;
-    }
-#else
-    if (!compute_timings(bitrate, n_timings))
-    {
-#if DEBUG
-        Serial.println("Failed to compute timings");
-#endif
-        return false;
-    }
-#endif
-    FDCAN1->NBTP = ((n_timings.SJW - 1) << 25) | ((n_timings.TS1 - 1) << 16) | ((n_timings.TS2 - 1) << 8) | (n_timings.BRP - 1);
-#if DEBUG
-    printRegister("NBTP: ", FDCAN1->NBTP);
-    Serial.println("Bit timings set.");
-#endif
-
-#if CANARD_ENABLE_CANFD
-    FDCAN1->RXESC = 0b111;
-    FDCAN1->TXESC = 0b111; // 64 byte payloads
-#endif
-
-    memset(&MessageRam, 0, sizeof(MessageRam));
-    FDCAN_message_ram_offset = 0;
-    FDCAN1->SIDFC = (FDCAN_message_ram_offset << 2) | (FDCAN_MAX_STD_FILTERS << 16);
-    MessageRam.StandardFilterSA = SRAMCAN_BASE + (FDCAN_message_ram_offset * 4U);
-    FDCAN_message_ram_offset += FDCAN_MAX_STD_FILTERS * 2;
-    FDCAN1->XIDFC = (FDCAN_message_ram_offset << 2) | (FDCAN_MAX_EXT_FILTERS << 16);
-    MessageRam.ExtendedFilterSA = SRAMCAN_BASE + (FDCAN_message_ram_offset * 4U);
-    FDCAN_message_ram_offset += FDCAN_MAX_EXT_FILTERS * 2;
-    FDCAN1->RXF0C = (FDCAN_message_ram_offset << 2) | (FDCAN_RX_FIFO0_ELEMENTS << 16);
-    MessageRam.RxFIFO0SA = SRAMCAN_BASE + (FDCAN_message_ram_offset * 4U);
-    FDCAN_message_ram_offset += FDCAN_RX_FIFO0_ELEMENTS * FDCAN_ELEMENT_SIZE_WORDS;
-    FDCAN1->TXBC = (FDCAN_message_ram_offset << 2) | (FDCAN_TX_BUFFER_ELEMENTS << 24);
-    MessageRam.TxFIFOQSA = SRAMCAN_BASE + (FDCAN_message_ram_offset * 4U);
-#if DEBUG
-    Serial.println("Message RAM configured.");
-#endif
-
-    FDCAN1->GFC = (0x02 << 4) | 0x01; // Accept non-matching standard into FIFO0, reject extended
-    _CANSetFilter(0, 0, 0x0, 0x0);     // Default accept-all filter
-#if DEBUG
-    Serial.println("Default filter set.");
-#endif
-
-    FDCAN1->CCCR &= ~(FDCAN_CCCR_CCE | FDCAN_CCCR_INIT);
-#if DEBUG
-    Serial.println("Attempting to exit init mode...");
-#endif
+    FDCAN1->CCCR |= FDCAN_CCCR_INIT; // Request driver init
     start_ms = millis();
-    while ((FDCAN1->CCCR & FDCAN_CCCR_INIT))
+    while ((FDCAN1->CCCR & FDCAN_CCCR_INIT) == 0)
     {
-        FDCAN1->CCCR &= ~(FDCAN_CCCR_CCE | FDCAN_CCCR_INIT);
-        if (millis() - start_ms > 100) {
-#if DEBUG
-            Serial.println("CANInit H7 failed to exit init mode.");
-#endif
+        if (millis() - start_ms > 100)
+        {
             return false;
         }
     }
-    
-    bool success = !(FDCAN1->CCCR & FDCAN_CCCR_INIT);
-#if DEBUG
-    if (success)
+
+    FDCAN1->CCCR |= FDCAN_CCCR_CCE; // Enable Config change
+    FDCAN1->IE = 0;                 // disable interupts
+
+    Timings timings;
+
+    if (!computeTimings(bitrate, timings))
     {
-        Serial.println("CANInit H7 success.");
+        return false;
     }
-    else
+
+    FDCAN1->NBTP = (((timings.sjw - 1) << FDCAN_NBTP_NSJW_Pos) |
+                    ((timings.bs1 - 1) << FDCAN_NBTP_NTSEG1_Pos) |
+                    ((timings.bs2 - 1) << FDCAN_NBTP_NTSEG2_Pos) |
+                    ((timings.prescaler - 1) << FDCAN_NBTP_NBRP_Pos));
+
+    // FDCAN1->RXESC = 0; // Set for 8Byte Frames
+
+    FDCAN1->RXESC = 0x777; // Support up to 64-byte long frames
+    FDCAN1->TXESC = 0x7;   // Support up to 64-byte long frames
+
+    // --- Start of Message RAM Configuration ---
+    // Make sure the offset is initialized to 0.
+    uint32_t FDCANMessageRAMOffset_ = 0;
+
+    // --- NEW (THE FIX) ---
+    // 1. Configure Global Filter: Reject non-matching frames.
+    FDCAN1->GFC = (0x3U << 4) | (0x3U << 2);
+
+    // 2. Configure Standard ID Filter List
+    uint32_t num_std_filters = FDCAN_MAX_STD_FILTERS; // Let's allocate for the max
+    FDCAN1->SIDFC = (FDCANMessageRAMOffset_ << 2) | (num_std_filters << 16);
+    MessageRam_.StandardFilterSA = SRAMCAN_BASE + (FDCANMessageRAMOffset_ * 4U);
+    FDCANMessageRAMOffset_ += num_std_filters;
+    // --- END NEW ---
+
+    // 3. Rx FIFO 0 start address and element count
+    uint32_t num_elements = MIN((FDCAN_NUM_RXFIFO0_SIZE / FDCAN_FRAME_BUFFER_SIZE), 64U);
+    if (num_elements)
     {
-        Serial.println("CANInit H7 failed.");
+        FDCAN1->RXF0C = (FDCANMessageRAMOffset_ << 2) | (num_elements << 16);
+        MessageRam_.RxFIFO0SA = SRAMCAN_BASE + (FDCANMessageRAMOffset_ * 4U);
+        FDCANMessageRAMOffset_ += num_elements * FDCAN_FRAME_BUFFER_SIZE;
     }
-#endif
-    return success;
+
+    // 4. Tx FIFO/queue start address and element count
+    num_elements = MIN((FDCAN_TX_FIFO_BUFFER_SIZE / FDCAN_FRAME_BUFFER_SIZE), 32U);
+    if (num_elements)
+    {
+        FDCAN1->TXBC = (FDCANMessageRAMOffset_ << 2) | (num_elements << 24);
+        MessageRam_.TxFIFOQSA = SRAMCAN_BASE + (FDCANMessageRAMOffset_ * 4U);
+        FDCANMessageRAMOffset_ += num_elements * FDCAN_FRAME_BUFFER_SIZE;
+    }
+
+    // 5. Check for RAM overflow
+    MessageRam_.EndAddress = SRAMCAN_BASE + (FDCANMessageRAMOffset_ * 4U);
+    if (MessageRam_.EndAddress > MESSAGE_RAM_END_ADDR)
+    {
+        return false;
+    }
+
+    // Clear all Interrupts
+    FDCAN1->IR = 0x3FFFFFFF;
+
+    CANSetFilter(0, 0, 0x0, 0x0); // Default accept-all filter
+
+    FDCAN1->CCCR &= ~FDCAN_CCCR_INIT;
+    start_ms = millis();
+    while ((FDCAN1->CCCR & FDCAN_CCCR_INIT) == 1)
+    {
+        FDCAN1->CCCR &= ~FDCAN_CCCR_INIT;
+        if (millis() - start_ms > 1000)
+        {
+            Serial.println("------------------------------------");
+            Serial.println("--- FDCAN Register Dump ---");
+
+            // Core & Control Registers
+            Serial.print("CCCR (Control): 0x");
+            Serial.println(FDCAN1->CCCR, HEX);
+            Serial.print("NBTP (Nominal Timing): 0x");
+            Serial.println(FDCAN1->NBTP, HEX);
+
+            // Status & Error Registers
+            Serial.print("ECR (Error Counter): 0x");
+            Serial.println(FDCAN1->ECR, HEX);
+            Serial.print("PSR (Protocol Status): 0x");
+            Serial.println(FDCAN1->PSR, HEX);
+
+            // Message RAM Configuration (verify our writes)
+            Serial.print("GFC (Global Filter): 0x");
+            Serial.println(FDCAN1->GFC, HEX);
+            Serial.print("SIDFC (Std ID Filter): 0x");
+            Serial.println(FDCAN1->SIDFC, HEX);
+            Serial.print("RXF0C (Rx FIFO 0 Cfg): 0x");
+            Serial.println(FDCAN1->RXF0C, HEX);
+            Serial.print("TXBC (Tx Buffer Cfg): 0x");
+            Serial.println(FDCAN1->TXBC, HEX);
+
+            // Interrupt Configuration
+            Serial.print("IE (Interrupt Enable): 0x");
+            Serial.println(FDCAN1->IE, HEX);
+            Serial.print("ILS (Interrupt Line Sel): 0x");
+            Serial.println(FDCAN1->ILS, HEX);
+            Serial.println("------------------------------------");
+            Serial.flush(); // Ensure the data is sent before the function returns false
+            return false;
+        }
+    }
+
+    return true;
 }
 
 bool CANInit(CAN_BITRATE bitrate, int remap)

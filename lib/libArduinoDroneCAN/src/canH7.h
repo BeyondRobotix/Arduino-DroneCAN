@@ -3,7 +3,7 @@
 #define CAN_DRIVER_H7_
 
 #include "stm32h7xx.h"
-#include "canard.h"      // Use canard's native frame definition
+#include "canard.h" // Use canard's native frame definition
 
 /**
  * @brief Configures the GPIO pins for the CAN peripheral.
@@ -32,7 +32,6 @@ void CANReceive(CanardCANFrame *rx_frame);
  * @brief Configures a single standard ID filter.
  */
 void CANSetFilter(uint8_t index, uint8_t fifo, uint32_t id, uint32_t mask);
-
 
 enum CAN_BITRATE
 {
@@ -79,6 +78,20 @@ bool CANInit(CAN_BITRATE bitrate, int remap);
  */
 bool CANInit(uint32_t bitrate, int remap);
 #endif
+
+struct Timings
+{
+    uint16_t sample_point_permill;
+    uint16_t prescaler;
+    uint8_t sjw;
+    uint8_t bs1;
+    uint8_t bs2;
+
+    Timings()
+        : sample_point_permill(0), prescaler(0), sjw(0), bs1(0), bs2(0)
+    {
+    }
+};
 
 #endif // CAN_DRIVER_H7_
 #endif // CANH7
