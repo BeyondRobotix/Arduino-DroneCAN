@@ -1,311 +1,371 @@
+#ifdef CANH7
+#include "Arduino.h"
 #include "canH7.h"
-#include <stdbool.h>
-#include <string.h>
+#include <stm32h7xx.h>
 
-// -----------------------------------------------------------------------------
-// FIX: Local Definitions for Missing HAL Time Segment Constants
-// These constants are the register values (TQ - 1) expected by FDCAN_InitTypeDef
-// -----------------------------------------------------------------------------
-#define SRAMCAN_BASE 0x4000AC00U 
+#define DEBUG 0
+#define AF9 0x09
 
-// Nominal Time Segment 1 (NTSEG1): 16 TQ -> value 15
-#ifndef FDCAN_NTSEG1_16TQ
-#define FDCAN_NTSEG1_16TQ ((uint32_t)15U)
-#endif
-// Nominal Time Segment 2 (NTSEG2): 3 TQ -> value 2
-#ifndef FDCAN_NTSEG2_3TQ
-#define FDCAN_NTSEG2_3TQ ((uint32_t)2U)
-#endif
-// Nominal Sync Jump Width (NSJW): 1 TQ -> value 0
-#ifndef FDCAN_NSJW_1TQ
-#define FDCAN_NSJW_1TQ ((uint32_t)0U)
-#endif
-// Data Time Segment 1 (DTSEG1): 1 TQ -> value 0 (Used for Classic CAN fallback)
-#ifndef FDCAN_DTSEG1_1TQ
-#define FDCAN_DTSEG1_1TQ ((uint32_t)0U)
-#endif
-// Data Time Segment 2 (DTSEG2): 1 TQ -> value 0 (Used for Classic CAN fallback)
-#ifndef FDCAN_DTSEG2_1TQ
-#define FDCAN_DTSEG2_1TQ ((uint32_t)0U)
-#endif
+// Timing configurations for different bitrates
+// Assuming PLL2_Q = 80MHz for FDCAN kernel clock
+CAN_bit_timing_config_t can_configs[6] = {
+    {4, 11, 100}, // 50 kbps:  80MHz / (100 * (1+11+4)) = 50k
+    {4, 11, 50},  // 100 kbps: 80MHz / (50 * (1+11+4)) = 100k
+    {4, 11, 40},  // 125 kbps: 80MHz / (40 * (1+11+4)) = 125k
+    {4, 11, 20},  // 250 kbps: 80MHz / (20 * (1+11+4)) = 250k
+    {4, 11, 10},  // 500 kbps: 80MHz / (10 * (1+11+4)) = 500k
+    {4, 11, 5}    // 1 Mbps:   80MHz / (5 * (1+11+4)) = 1M
+};
 
+// FDCAN memory configuration
+#define FDCAN_MEM_START_ADDR          0x4000AC00UL
+#define FDCAN_MEM_END_ADDR            0x4000D3FFUL
 
-// --- Configuration Constants (Assumed from previous steps) ---
-#define FDCAN_NUM_STD_FILTERS 1 
-#define FDCAN_NUM_EXT_FILTERS 0
-#define FDCAN_NUM_RXFIFO0_ELEMENTS 8
-#define FDCAN_NUM_TX_QUEUE_ELEMENTS 7
-#define FDCAN_ELEMENT_SIZE_WORDS 4
+// Standard filters (not used, set to 0)
+#define FDCAN_11B_FILTER_EL_CNT       0UL
+#define FDCAN_11B_FILTER_OFFSET       0UL
 
-#define FDCAN_RX_FIFO0_ELEMENT_SIZE FDCAN_DATA_BYTES_8
-#define FDCAN_TX_ELEMENT_SIZE FDCAN_DATA_BYTES_8
+// Extended filters configuration
+#define FDCAN_29B_FILTER_EL_CNT       1UL
+#define FDCAN_29B_FILTER_EL_SIZE      8UL
+#define FDCAN_29B_FILTER_OFFSET       0UL
+#define FDCAN_29B_FILTER_START_ADDR   FDCAN_MEM_START_ADDR
 
-#define FDCAN_FILTER_BYTES (FDCAN_STD_FILTER_WORDS * 4)
-#define FDCAN_RX_ELEMENT_BYTES (FDCAN_ELEMENT_SIZE_WORDS * 4)
-#define FDCAN_TX_ELEMENT_BYTES (FDCAN_ELEMENT_SIZE_WORDS * 4)
+// RX FIFO 0 configuration
+#define FDCAN_RX_FIFO_0_EL_CNT        32UL
+#define FDCAN_RX_FIFO_0_HEAD_SIZE     8UL
+#define FDCAN_RX_FIFO_0_DATA_SIZE     8UL
+#define FDCAN_RX_FIFO_0_EL_SIZE       16UL
+#define FDCAN_RX_FIFO_0_OFFSET        (FDCAN_29B_FILTER_OFFSET + FDCAN_29B_FILTER_EL_CNT * 2)
+#define FDCAN_RX_FIFO_0_START_ADDR    (FDCAN_29B_FILTER_START_ADDR + FDCAN_29B_FILTER_EL_CNT * FDCAN_29B_FILTER_EL_SIZE)
 
-// Helper to calculate size in 32-bit words (Header + 8-byte Data = 4 words total)
-#define FDCAN_ELEMENT_WORDS 4 
-#define FDCAN_STD_FILTER_WORDS 1
+// TX FIFO configuration
+#define FDCAN_TX_FIFO_EL_CNT          16UL
+#define FDCAN_TX_FIFO_HEAD_SIZE       8UL
+#define FDCAN_TX_FIFO_DATA_SIZE       8UL
+#define FDCAN_TX_FIFO_EL_SIZE         16UL
+#define FDCAN_TX_FIFO_OFFSET          (FDCAN_RX_FIFO_0_OFFSET + FDCAN_RX_FIFO_0_EL_CNT * 4)
+#define FDCAN_TX_FIFO_START_ADDR      (FDCAN_RX_FIFO_0_START_ADDR + FDCAN_RX_FIFO_0_EL_CNT * FDCAN_RX_FIFO_0_EL_SIZE)
 
-// --- Global Handle Definition ---
-FDCAN_HandleTypeDef hfdcan1;
-#define FDCAN_PERIPHERAL FDCAN1
-#define RX_FIFO FDCAN_RX_FIFO0
-#define TX_QUEUE_ELEMENTS 7
-
-// --- Internal Data Structure for Bit Timing (Hardcoded for FDCAN @ 100MHz clock) ---
-typedef struct
+struct can_fifo_element
 {
-    uint32_t NominalPrescaler;
-    uint32_t NominalTimeSeg1;
-    uint32_t NominalTimeSeg2;
-    uint32_t NominalSyncJumpWidth;
-} FDCAN_Timing_Config_t;
+    uint32_t word0;
+    uint32_t word1;
+    uint32_t word2;
+    uint32_t word3;
+};
 
-// The values now use the locally defined constants above
-const FDCAN_Timing_Config_t fdcancfg[6] = {
-    // FDCAN Clock = 100 MHz. Total TQ = 20. Sample Point ~ 80% (3 TQ after 1 TQ Sync + 16 TQ TSeg1)
-    [CAN_50KBPS] = {100, FDCAN_NTSEG1_16TQ, FDCAN_NTSEG2_3TQ, FDCAN_NSJW_1TQ},
-    [CAN_100KBPS] = {50, FDCAN_NTSEG1_16TQ, FDCAN_NTSEG2_3TQ, FDCAN_NSJW_1TQ},
-    [CAN_125KBPS] = {40, FDCAN_NTSEG1_16TQ, FDCAN_NTSEG2_3TQ, FDCAN_NSJW_1TQ},
-    [CAN_250KBPS] = {20, FDCAN_NTSEG1_16TQ, FDCAN_NTSEG2_3TQ, FDCAN_NSJW_1TQ},
-    [CAN_500KBPS] = {10, FDCAN_NTSEG1_16TQ, FDCAN_NTSEG2_3TQ, FDCAN_NSJW_1TQ},
-    [CAN_1000KBPS] = {5, FDCAN_NTSEG1_16TQ, FDCAN_NTSEG2_3TQ, FDCAN_NSJW_1TQ}};
+#define STM32_CAN_TIR_TXRQ (1U << 0U)
+#define STM32_CAN_RIR_RTR  (1U << 1)
+#define STM32_CAN_RIR_IDE  (1U << 2)
+#define STM32_CAN_TIR_RTR  (1U << 1U)
+#define STM32_CAN_TIR_IDE  (1U << 2U)
 
-// --- FDCAN Initialization ---
-
-bool CANInit(enum BITRATE bitrate, int remap)
-{
-    __HAL_RCC_FDCAN_CLK_ENABLE();
-    __HAL_RCC_GPIOH_CLK_ENABLE();
-    __HAL_RCC_GPIOD_CLK_ENABLE();
-
-    GPIO_InitTypeDef GPIO_InitStruct = {0};
-
-    // FDCAN1 RX GPIO Configuration: PH14 -> FDCAN1_RX
-    GPIO_InitStruct.Pin = GPIO_PIN_14;
-    GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-    GPIO_InitStruct.Pull = GPIO_NOPULL;
-    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
-    GPIO_InitStruct.Alternate = GPIO_AF9_FDCAN1; // AF9 for FDCAN1 on PH14
-    HAL_GPIO_Init(GPIOH, &GPIO_InitStruct);
-
-    // FDCAN1 TX GPIO Configuration: PD1 -> FDCAN1_TX
-    GPIO_InitStruct.Pin = GPIO_PIN_1;
-    GPIO_InitStruct.Alternate = GPIO_AF9_FDCAN1; // AF9 for FDCAN1 on PD1
-    HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
-
-    HAL_StatusTypeDef status;
-    FDCAN_Timing_Config_t timing = fdcancfg[bitrate];
-
-    uint32_t current_address = SRAMCAN_BASE;
-
-    // Standard Filter List
-    hfdcan1.msgRam.StandardFilterSA = current_address;
-    current_address += FDCAN_NUM_STD_FILTERS * FDCAN_FILTER_BYTES;
-
-    // Extended Filter List (0 elements)
-    hfdcan1.msgRam.ExtendedFilterSA = current_address;
-
-    // Rx FIFO 0 
-    hfdcan1.msgRam.RxFIFO0SA = current_address;
-    current_address += FDCAN_NUM_RXFIFO0_ELEMENTS * FDCAN_RX_ELEMENT_BYTES;
-
-    // Rx FIFO 1 (0 elements)
-    hfdcan1.msgRam.RxFIFO1SA = current_address;
-    
-    // Tx FIFO/Queue (CRITICAL: Needs to be set correctly)
-    hfdcan1.msgRam.TxFIFOQSA = current_address;
-    current_address += FDCAN_NUM_TX_QUEUE_ELEMENTS * FDCAN_TX_ELEMENT_BYTES;
-
-    // Set unused or End addresses
-    hfdcan1.msgRam.RxBufferSA = current_address;
-    hfdcan1.msgRam.TxEventFIFOSA = current_address;
-    hfdcan1.msgRam.TxBufferSA = current_address;
-    hfdcan1.msgRam.TTMemorySA = current_address;
-    hfdcan1.msgRam.EndAddress = current_address;
-
-    // 1. De-Initialize (HAL recommended for re-init)
-    if (HAL_FDCAN_DeInit(&hfdcan1) != HAL_OK)
-        return false;
-
-    // 2. Configure Handle
-    hfdcan1.Instance = FDCAN_PERIPHERAL;
-
-    // 3. Configure Initialization Structure for CLASSIC CAN (8-byte payload)
-    hfdcan1.Instance = FDCAN_PERIPHERAL;
-    hfdcan1.Init.Mode = FDCAN_MODE_NORMAL;
-    hfdcan1.Init.AutoRetransmission = ENABLE;
-    hfdcan1.Init.TransmitPause = DISABLE;
-    hfdcan1.Init.ProtocolException = DISABLE;
-    hfdcan1.Init.FrameFormat = FDCAN_FRAME_CLASSIC; 
-    hfdcan1.Init.DataPrescaler = 1; 
-    hfdcan1.Init.DataTimeSeg1 = FDCAN_DTSEG1_1TQ;
-    hfdcan1.Init.DataTimeSeg2 = FDCAN_DTSEG2_1TQ;
-
-    // Apply Nominal Timings
-    hfdcan1.Init.NominalPrescaler = timing.NominalPrescaler;
-    hfdcan1.Init.NominalSyncJumpWidth = timing.NominalSyncJumpWidth;
-    hfdcan1.Init.NominalTimeSeg1 = timing.NominalTimeSeg1;
-    hfdcan1.Init.NominalTimeSeg2 = timing.NominalTimeSeg2;
-
-    // 4. Configure Message RAM Layout for Init (Must match manual settings)
-    hfdcan1.Init.StdFiltersNbr = FDCAN_NUM_STD_FILTERS;       
-    hfdcan1.Init.ExtFiltersNbr = 0;
-    hfdcan1.Init.RxFifo0ElmtsNbr = FDCAN_NUM_RXFIFO0_ELEMENTS;      
-    hfdcan1.Init.RxFifo1ElmtsNbr = 0;
-    
-    // CRITICAL FIX: Ensure zero dedicated Tx buffers
-    hfdcan1.Init.RxBuffersNbr = 0; 
-    hfdcan1.Init.TxBuffersNbr = 0; 
-
-    // Set Tx Queue Parameters
-    hfdcan1.Init.TxFifoQueueElmtsNbr = FDCAN_NUM_TX_QUEUE_ELEMENTS;
-    hfdcan1.Init.TxFifoQueueMode = FDCAN_TX_QUEUE_OPERATION; // Use Queue mode
-
-    // Payload Size must be 8 bytes for Classic CAN
-    hfdcan1.Init.RxFifo0ElmtSize = FDCAN_DATA_BYTES_8; 
-    hfdcan1.Init.TxElmtSize = FDCAN_DATA_BYTES_8;
-
-    // 5. Initialize FDCAN
-    status = HAL_FDCAN_Init(&hfdcan1);
-    if (status != HAL_OK)
-        return false;
-
-    // 6. CONFIGURE GLOBAL FILTER TO ACCEPT ALL NON-MATCHING FRAMES (Standard and Extended)
-    // This ensures all CAN traffic is received for the higher-level DroneCAN library to process.
-    status = HAL_FDCAN_ConfigGlobalFilter(&hfdcan1,
-                                          FDCAN_FILTER_TO_RXFIFO0,  // Non-matching Standard ID frames
-                                          FDCAN_FILTER_TO_RXFIFO0,  // Non-matching Extended ID frames
-                                          FDCAN_FILTER_TO_RXFIFO0,  // Non-matching Standard Remote frames
-                                          FDCAN_FILTER_TO_RXFIFO0); // Non-matching Extended Remote frames
-    if (status != HAL_OK)
-        return false;
-
-    // 7. Start the FDCAN peripheral
-    if (HAL_FDCAN_Start(&hfdcan1) != HAL_OK)
-        return false;
-
-    // Check CCCR register (Configuration and Control Register)
-    Serial.print("CCCR Register Value: 0x");
-    Serial.println(hfdcan1.Instance->CCCR, HEX);
-
-    // The INIT bit (CCCR[0]) must be 1 to be in Configuration Mode
-    if (!(hfdcan1.Instance->CCCR & FDCAN_CCCR_INIT))
-    {
-        Serial.println("FDCAN did not enter Configuration Mode (CCCR.INIT is 0). Clock issue?");
-    }
-
-    return true;
-}
-
-// --- FDCAN Transmission ---
+#define CAN_EXT_ID_MASK    0x1FFFFFFFU
+#define CAN_STD_ID_MASK    0x000007FFU
 
 /**
- * @brief Helper function to convert byte length (0-8) to FDCAN_DLC_x constant.
+ * Print registers for debugging.
  */
-static uint32_t getHalDlc(uint8_t len)
+void printRegister(char *buf, uint32_t reg)
 {
-    if (len > 8)
-        len = 8;
-    return len << 16; // DLC encoding for 0-8 bytes in FDCAN
+    if (DEBUG == 0)
+        return;
+    Serial.print(buf);
+    Serial.print("0x");
+    Serial.print(reg, HEX);
+    Serial.println();
 }
 
-void CANSend(const CanardCANFrame *CAN_tx_msg)
+/**
+ * Initializes the CAN GPIO registers.
+ */
+void CANSetGpio(GPIO_TypeDef *addr, uint8_t index, uint8_t afry, uint8_t speed = 3)
 {
-    FDCAN_TxHeaderTypeDef txHeader = {0};
+    uint8_t _index2 = index * 2;
+    uint8_t _index4 = index * 4;
+    uint8_t ofs = 0;
+    uint8_t setting;
 
-    // 1. Map CanardCANFrame to FDCAN_TxHeaderTypeDef
-    if (CAN_tx_msg->id & CANARD_CAN_FRAME_EFF)
+    if (index > 7)
     {
-        // Correctly handles DroneCAN's required 29-bit Extended ID format
-        txHeader.IdType = FDCAN_EXTENDED_ID;
-        txHeader.Identifier = CAN_tx_msg->id & 0x1FFFFFFF;
-    }
-    else
-    {
-        txHeader.IdType = FDCAN_STANDARD_ID;
-        txHeader.Identifier = CAN_tx_msg->id & 0x7FF;
+        _index4 = (index - 8) * 4;
+        ofs = 1;
     }
 
-    txHeader.TxFrameType = (CAN_tx_msg->id & CANARD_CAN_FRAME_RTR) ? FDCAN_REMOTE_FRAME : FDCAN_DATA_FRAME;
+    uint32_t mask;
+    
+    // Reset and set alternate function
+    mask = 0xF << _index4;
+    addr->AFR[ofs] &= ~mask;
+    setting = afry;
+    mask = setting << _index4;
+    addr->AFR[ofs] |= mask;
 
-    // Classic CAN mode settings for DroneCAN
-    txHeader.FDFormat = FDCAN_CLASSIC_CAN;
-    txHeader.BitRateSwitch = FDCAN_BRS_OFF;
+    // Reset and set mode to alternate function
+    mask = 0x3 << _index2;
+    addr->MODER &= ~mask;
+    setting = 0x2; // Alternate function mode
+    mask = setting << _index2;
+    addr->MODER |= mask;
 
-    txHeader.DataLength = getHalDlc(CAN_tx_msg->data_len);
-    txHeader.ErrorStateIndicator = FDCAN_ESI_ACTIVE;
-    txHeader.TxEventFifoControl = FDCAN_NO_TX_EVENTS;
+    // Reset and set speed
+    mask = 0x3 << _index2;
+    addr->OSPEEDR &= ~mask;
+    setting = speed;
+    mask = setting << _index2;
+    addr->OSPEEDR |= mask;
 
-    // 2. Add the message to the Tx FIFO/Queue
-    HAL_StatusTypeDef status = HAL_FDCAN_AddMessageToTxFifoQ(&hfdcan1, &txHeader, (uint8_t *)CAN_tx_msg->data);
-    if (status != HAL_OK)
-    {
-        // Handle error
-    }
+    // Reset Output push-pull
+    mask = 0x1 << index;
+    addr->OTYPER &= ~mask;
+
+    // Reset port pull-up/pull-down
+    mask = 0x3 << _index2;
+    addr->PUPDR &= ~mask;
 }
 
-// --- FDCAN Reception ---
+/**
+ * Initializes the CAN filter registers.
+ */
+void CANSetFilter(uint8_t index, uint8_t scale, uint8_t mode, uint8_t fifo, uint32_t bank1, uint32_t bank2)
+{
+    if (index > 0) return; // Only using one filter for extended IDs
+    
+    uint32_t *ptr = (uint32_t*)FDCAN_29B_FILTER_START_ADDR;
+    
+    // For extended filter: Filter configuration + ID1
+    *ptr++ = (1UL << 29) | 0x0; // Store in FIFO 0 if filter matches, accept all IDs
+    *ptr++ = 0x0; // Mask - accept all
+}
 
+/**
+ * Convert DLC to data length
+ */
+uint8_t dlcToDataLength(uint8_t dlc)
+{
+    if (dlc <= 8) return dlc;
+    else if (dlc == 9) return 12;
+    else if (dlc == 10) return 16;
+    else if (dlc == 11) return 20;
+    else if (dlc == 12) return 24;
+    else if (dlc == 13) return 32;
+    else if (dlc == 14) return 48;
+    return 64;
+}
+
+/**
+ * Initializes the CAN controller with specified bit rate.
+ */
+bool CANInit(BITRATE bitrate, int remap)
+{
+    // Reset FDCAN2
+    FDCAN2->CCCR = FDCAN_CCCR_INIT;
+    
+    // Enable clocks
+    RCC->APB1HENR |= RCC_APB1HENR_FDCANEN; // Enable FDCAN clock
+    
+    // Configure GPIO based on remap option
+    if (remap == 0)
+    {
+        // PA11 (RX), PA12 (TX) - Default FDCAN2 pins
+        RCC->AHB4ENR |= RCC_AHB4ENR_GPIOAEN;
+        CANSetGpio(GPIOA, 11, AF9); // PA11 -> FDCAN2_RX
+        CANSetGpio(GPIOA, 12, AF9); // PA12 -> FDCAN2_TX
+    }
+    else if (remap == 2)
+    {
+        // PB8 (RX), PB9 (TX) - Alternate FDCAN2 pins
+        RCC->AHB4ENR |= RCC_AHB4ENR_GPIOBEN;
+        CANSetGpio(GPIOB, 5, AF9);  // PB8 -> FDCAN2_RX
+        CANSetGpio(GPIOB, 6, AF9);  // PB9 -> FDCAN2_TX
+    }
+    else if (remap == 1)
+    {
+        // PD0 (RX), PD1 (TX) - Another alternate for FDCAN2
+        RCC->AHB4ENR |= RCC_AHB4ENR_GPIODEN;
+        RCC->AHB4ENR |= RCC_AHB4ENR_GPIOHEN;
+        CANSetGpio(GPIOH, 14, AF9);
+        CANSetGpio(GPIOD, 1, AF9); 
+    }
+    else if (remap == 3)
+    {
+        // PH13 (RX), PH14 (TX) - Yet another alternate for FDCAN2
+        RCC->AHB4ENR |= RCC_AHB4ENR_GPIOHEN;
+        CANSetGpio(GPIOH, 13, AF9); // PH13 -> FDCAN2_RX
+        CANSetGpio(GPIOH, 14, AF9); // PH14 -> FDCAN2_TX
+    }
+    
+    // Set FDCAN clock source to PLL2Q (80 MHz assumed)
+    RCC->D2CCIP1R &= ~RCC_D2CCIP1R_FDCANSEL_Msk;
+    RCC->D2CCIP1R |= RCC_D2CCIP1R_FDCANSEL_1; // PLL2Q selected
+    
+    // Enter initialization mode
+    FDCAN2->CCCR |= FDCAN_CCCR_INIT;
+    while ((FDCAN2->CCCR & FDCAN_CCCR_INIT) == 0);
+    
+    // Enable configuration change
+    FDCAN2->CCCR |= FDCAN_CCCR_CCE;
+    
+    // Set Classic CAN mode (not FD)
+    FDCAN2->CCCR &= ~FDCAN_CCCR_FDOE;
+    
+    // Disable automatic retransmission for compatibility with L431 driver
+    FDCAN2->CCCR &= ~FDCAN_CCCR_DAR;
+    
+    // Clear message RAM
+    uint32_t *ram_ptr;
+    for (ram_ptr = (uint32_t*)FDCAN_MEM_START_ADDR; ram_ptr < (uint32_t*)FDCAN_MEM_END_ADDR; ram_ptr++)
+    {
+        *ram_ptr = 0;
+    }
+    
+    // Configure bit timing
+    FDCAN2->NBTP = 0; // Clear first
+    FDCAN2->NBTP |= ((can_configs[bitrate].TS2 - 1) << FDCAN_NBTP_NTSEG2_Pos) |
+                    ((can_configs[bitrate].TS1 - 1) << FDCAN_NBTP_NTSEG1_Pos) |
+                    ((can_configs[bitrate].BRP - 1) << FDCAN_NBTP_NBRP_Pos) |
+                    (3 << FDCAN_NBTP_NSJW_Pos); // Sync jump width = 4
+    
+    // Configure filters - accept all extended IDs
+    FDCAN2->GFC = 0; // Accept all frames by default
+    FDCAN2->SIDFC = 0; // No standard filters
+    
+    // Setup extended filter
+    FDCAN2->XIDFC = (FDCAN_29B_FILTER_EL_CNT << FDCAN_XIDFC_LSE_Pos) | 
+                    (FDCAN_29B_FILTER_OFFSET << FDCAN_XIDFC_FLESA_Pos);
+    
+    // Initialize filter to accept all
+    CANSetFilter(0, 1, 0, 0, 0x0, 0x0);
+    
+    // Configure RX FIFO 0
+    FDCAN2->RXF0C = (FDCAN_RX_FIFO_0_OFFSET << FDCAN_RXF0C_F0SA_Pos) |
+                    (FDCAN_RX_FIFO_0_EL_CNT << FDCAN_RXF0C_F0S_Pos);
+    
+    // Configure TX buffer/FIFO
+    FDCAN2->TXBC = (FDCAN_TX_FIFO_EL_CNT << FDCAN_TXBC_TFQS_Pos) |
+                   (FDCAN_TX_FIFO_OFFSET << FDCAN_TXBC_TBSA_Pos);
+    
+    // No TX event FIFO
+    FDCAN2->TXEFC = 0;
+    
+    // Enable RX FIFO 0 new message interrupt
+    FDCAN2->IE |= FDCAN_IE_RF0NE;
+    
+    // Enable interrupt line 0
+    FDCAN2->ILE |= FDCAN_ILE_EINT0;
+    
+    // Leave initialization mode
+    FDCAN2->CCCR &= ~FDCAN_CCCR_INIT;
+    
+    // Wait for normal mode
+    const uint32_t now = millis();
+
+    while (millis() - now < 1000)
+    {
+        if ((FDCAN2->CCCR & FDCAN_CCCR_INIT) == 0)
+        {
+            Serial.println("FDCAN2 initialized successfully");
+            return true;
+        }
+        FDCAN2->CCCR &= ~FDCAN_CCCR_INIT;
+    }
+    
+    Serial.println("FDCAN2 initialization failed!");
+    return false;
+}
+
+/**
+ * Decodes CAN messages from the data registers.
+ */
 void CANReceive(CanardCANFrame *CAN_rx_msg)
 {
-    FDCAN_RxHeaderTypeDef rxHeader;
-    uint8_t rxData[8];
+    // Get the fill level and get index
+    uint8_t rx_fifo_get_index = (uint8_t)((FDCAN2->RXF0S >> 8) & 0x3F);
+    
+    struct can_fifo_element *fifo;
+    fifo = (struct can_fifo_element*)(FDCAN_RX_FIFO_0_START_ADDR + rx_fifo_get_index * FDCAN_RX_FIFO_0_EL_SIZE);
+    
+    // Extract ID (always extended for UAVCAN/DroneCAN)
+    CAN_rx_msg->id = (fifo->word0 & CAN_EXT_ID_MASK) | CANARD_CAN_FRAME_EFF;
+    
+    // Extract data length
+    uint8_t dlc = (fifo->word1 >> 16) & 0x0F;
+    CAN_rx_msg->data_len = dlcToDataLength(dlc);
+    if (CAN_rx_msg->data_len > 8) CAN_rx_msg->data_len = 8; // Limit to 8 for classic CAN
+    
+    // Extract data bytes
+    CAN_rx_msg->data[0] = (uint8_t)((fifo->word2 >> 0) & 0xFF);
+    CAN_rx_msg->data[1] = (uint8_t)((fifo->word2 >> 8) & 0xFF);
+    CAN_rx_msg->data[2] = (uint8_t)((fifo->word2 >> 16) & 0xFF);
+    CAN_rx_msg->data[3] = (uint8_t)((fifo->word2 >> 24) & 0xFF);
+    CAN_rx_msg->data[4] = (uint8_t)((fifo->word3 >> 0) & 0xFF);
+    CAN_rx_msg->data[5] = (uint8_t)((fifo->word3 >> 8) & 0xFF);
+    CAN_rx_msg->data[6] = (uint8_t)((fifo->word3 >> 16) & 0xFF);
+    CAN_rx_msg->data[7] = (uint8_t)((fifo->word3 >> 24) & 0xFF);
+    
+    // Acknowledge the FIFO entry
+    FDCAN2->RXF0A = rx_fifo_get_index;
+}
 
-    if (HAL_FDCAN_GetRxMessage(&hfdcan1, RX_FIFO, &rxHeader, rxData) == HAL_OK)
+/**
+ * Encodes and sends CAN messages.
+ */
+void CANSend(const CanardCANFrame *CAN_tx_msg)
+{
+    // Check if TX FIFO is full
+    if (FDCAN2->TXFQS & FDCAN_TXFQS_TFQF)
     {
-        // 1. Map FDCAN_RxHeaderTypeDef to CanardCANFrame
-
-        // ID and EFF flag
-        CAN_rx_msg->id = rxHeader.Identifier;
-        if (rxHeader.IdType == FDCAN_EXTENDED_ID)
-        {
-            // Correctly extracts the Extended ID and sets the flag for DroneCAN
-            CAN_rx_msg->id |= CANARD_CAN_FRAME_EFF;
-        }
-
-        // RTR flag
-        if (rxHeader.RxFrameType == FDCAN_REMOTE_FRAME)
-        {
-            CAN_rx_msg->id |= CANARD_CAN_FRAME_RTR;
-        }
-
-        // Data Length and Data
-        uint8_t dlc = (uint8_t)((rxHeader.DataLength >> 16U) & 0xFU);
-        CAN_rx_msg->data_len = dlc;
-
-        // Copy data (max 8 bytes)
-        memcpy(CAN_rx_msg->data, rxData, dlc);
+        Serial.println("TX FIFO Full!");
+        return;
+    }
+    
+    // Get put index for TX FIFO
+    uint8_t tx_index = (FDCAN2->TXFQS >> 16) & 0x1F;
+    
+    struct can_fifo_element *fifo;
+    fifo = (struct can_fifo_element*)(FDCAN_TX_FIFO_START_ADDR + tx_index * FDCAN_TX_FIFO_EL_SIZE);
+    
+    // Set up the ID field (extended ID for UAVCAN)
+    fifo->word0 = (CAN_tx_msg->id & CAN_EXT_ID_MASK) | (1UL << 30); // XTD bit for extended
+    
+    // Set up control field
+    fifo->word1 = (CAN_tx_msg->data_len << 16); // DLC
+    
+    // Copy data
+    fifo->word2 = ((uint32_t)CAN_tx_msg->data[3] << 24) |
+                  ((uint32_t)CAN_tx_msg->data[2] << 16) |
+                  ((uint32_t)CAN_tx_msg->data[1] << 8) |
+                  ((uint32_t)CAN_tx_msg->data[0]);
+    
+    fifo->word3 = ((uint32_t)CAN_tx_msg->data[7] << 24) |
+                  ((uint32_t)CAN_tx_msg->data[6] << 16) |
+                  ((uint32_t)CAN_tx_msg->data[5] << 8) |
+                  ((uint32_t)CAN_tx_msg->data[4]);
+    
+    // Request transmission
+    FDCAN2->TXBAR |= (1UL << tx_index);
+    
+    // Wait for transmission to complete (with timeout)
+    volatile int count = 0;
+    while ((FDCAN2->TXBTO & (1UL << tx_index)) == 0 && count++ < 1000000);
+    
+    if (count >= 1000000)
+    {
+        Serial.print("Send timeout! ESR: ");
+        Serial.print(FDCAN2->PSR);
+        Serial.print(" ECR: ");
+        Serial.println(FDCAN2->ECR);
     }
 }
 
+/**
+ * Returns whether there are CAN messages available.
+ */
 uint8_t CANMsgAvail(void)
 {
-    return (uint8_t)HAL_FDCAN_GetRxFifoFillLevel(&hfdcan1, RX_FIFO);
+    // Check RX FIFO 0 fill level
+    return (FDCAN2->RXF0S & 0x3F);
 }
 
-// --- FDCAN Filtering ---
-
-void CANSetFilter(uint16_t id)
-{
-    FDCAN_FilterTypeDef sFilterConfig;
-
-    sFilterConfig.IdType = FDCAN_STANDARD_ID;
-    sFilterConfig.FilterIndex = 0;
-    sFilterConfig.FilterType = FDCAN_FILTER_MASK;
-    sFilterConfig.FilterConfig = FDCAN_FILTER_TO_RXFIFO0;
-    sFilterConfig.FilterID1 = id << 5;
-    sFilterConfig.FilterID2 = 0x7FF << 5;
-
-    HAL_FDCAN_ConfigFilter(&hfdcan1, &sFilterConfig);
-}
-
-void CANSetFilters(uint16_t *ids, uint8_t num)
-{
-    if (num > 0)
-    {
-        CANSetFilter(ids[0]);
-    }
-}
+#endif // CANH743
