@@ -10,3 +10,6 @@
 [submodule "dronecan/libcanard_repo"]
 	path = dronecan/libcanard_repo
 	url = https://github.com/dronecan/libcanard.git
+[submodule "lib/acanfd-stm32"]
+	path = lib/acanfd-stm32
+	url = https://github.com/pierremolinaro/acanfd-stm32.git
