@@ -32,7 +32,7 @@ void DroneCAN::init(CanardOnTransferReception onTransferReceived,
     }
 
     // initialise the internal LED
-    pinMode(19, OUTPUT);
+    // pinMode(19, OUTPUT);
 
     IWatchdog.reload();
 
@@ -46,7 +46,7 @@ void DroneCAN::init(CanardOnTransferReception onTransferReceived,
     {
         this->cycle();
         IWatchdog.reload();
-        digitalWrite(19, this->led_state);
+        // digitalWrite(19, this->led_state);
         this->led_state = !this->led_state;
     }
 }
@@ -80,7 +80,7 @@ void DroneCAN::cycle()
     {
         this->looptime = millis();
         this->process1HzTasks(this->micros64());
-        digitalWrite(19, this->led_state);
+        // digitalWrite(19, this->led_state);
         this->led_state = !this->led_state;
     }
 

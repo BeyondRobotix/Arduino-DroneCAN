@@ -1,8 +1,13 @@
 #ifdef CANH7
-#ifndef CAN_DRIVER_H743
-#define CAN_DRIVER_H743
+#ifndef CAN_DRIVER_H7_
+#define CAN_DRIVER_H7_
+
 #include <canard.h>
 
+/**
+ * @brief Defines standard CAN bitrates.
+ * This enum provides a list of common bitrates for CAN communication.
+ */
 enum BITRATE
 {
     CAN_50KBPS,
@@ -13,35 +18,33 @@ enum BITRATE
     CAN_1000KBPS
 };
 
-struct CAN_bit_timing_config_t
-{
-    uint8_t TS2;
-    uint8_t TS1;
-    uint16_t BRP;
-};
+/**
+ * @brief Initializes the FDCAN controller with a specified bitrate and interface.
+ * @param bitrate The desired communication speed from the BITRATE enum.
+ * @param can_iface_index Selects the hardware CAN interface (0 for FDCAN1, 1 for FDCAN2, etc.).
+ * @return Returns true if initialization is successful, false otherwise.
+ */
+bool CANInit(BITRATE bitrate, int can_iface_index);
 
-/* Symbolic names for formats of CAN message */
-enum
-{
-    STANDARD_FORMAT = 0,
-    EXTENDED_FORMAT
-} CAN_FORMAT;
+/**
+ * @brief Sends a CAN frame.
+ * This function queues a CAN frame for transmission. It's non-blocking.
+ * @param tx_msg A pointer to the CanardCANFrame structure containing the message to be sent.
+ */
+void CANSend(const CanardCANFrame *tx_msg);
 
-/* Symbolic names for type of CAN message */
-enum
-{
-    DATA_FRAME = 0,
-    REMOTE_FRAME
-} CAN_FRAME;
+/**
+ * @brief Receives a CAN frame.
+ * If a message is available in the FIFO, this function populates the provided struct with its data.
+ * @param rx_msg A pointer to a CanardCANFrame structure to be filled with the received message data.
+ */
+void CANReceive(CanardCANFrame *rx_msg);
 
-extern CAN_bit_timing_config_t can_configs[6];
-
+/**
+ * @brief Checks for available CAN messages in the receive buffer.
+ * @return The number of messages currently pending in the RX FIFO.
+ */
 uint8_t CANMsgAvail(void);
-void CANSend(const CanardCANFrame *CAN_tx_msg);
-void CANReceive(CanardCANFrame *CAN_rx_msg);
-void CANSetFilters(uint16_t *ids, uint8_t num);
-void CANSetFilter(uint16_t id);
-bool CANInit(BITRATE bitrate, int remap);
 
-#endif // CAN_DRIVER_H743
-#endif // CANH743
+#endif // CAN_DRIVER_H7_
+#endif // CANH7

@@ -337,6 +337,10 @@
   #define HAL_SD_MODULE_ENABLED
 #endif
 
+#if !defined(HAL_FDCAN_MODULE_DISABLED)
+  #define HAL_FDCAN_MODULE_ENABLED
+#endif
+
 /*----------------------------------------------------------------------------
  *        Arduino objects - C++ only
  *----------------------------------------------------------------------------*/

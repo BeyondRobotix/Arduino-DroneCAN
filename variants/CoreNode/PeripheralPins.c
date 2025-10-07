@@ -505,6 +505,32 @@ WEAK const PinMap PinMap_CAN_TD[] = {
 };
 #endif
 
+//*** FDCAN ***
+
+#ifdef HAL_FDCAN_MODULE_ENABLED
+WEAK const PinMap PinMap_FDCAN_TX[] = {
+  // Add the pin(s) you are using for FDCAN TX here
+  // Example for FDCAN1 on PA12 and PB9
+  {PA_12, FDCAN1, STM_PIN_DATA(STM_MODE_AF_PP, GPIO_PULLUP, GPIO_AF9_FDCAN1)},
+  {PB_9,  FDCAN1, STM_PIN_DATA(STM_MODE_AF_PP, GPIO_PULLUP, GPIO_AF9_FDCAN1)},
+  // Example for FDCAN2 on PB6
+  {PB_6,  FDCAN2, STM_PIN_DATA(STM_MODE_AF_PP, GPIO_PULLUP, GPIO_AF9_FDCAN2)},
+  {NC,    NP,     0}
+};
+#endif
+
+#ifdef HAL_FDCAN_MODULE_ENABLED
+WEAK const PinMap PinMap_FDCAN_RX[] = {
+  // Add the pin(s) you are using for FDCAN RX here
+  // Example for FDCAN1 on PA11 and PB8
+  {PA_11, FDCAN1, STM_PIN_DATA(STM_MODE_AF_PP, GPIO_PULLUP, GPIO_AF9_FDCAN1)},
+  {PB_8,  FDCAN1, STM_PIN_DATA(STM_MODE_AF_PP, GPIO_PULLUP, GPIO_AF9_FDCAN1)},
+  // Example for FDCAN2 on PB5
+  {PB_5,  FDCAN2, STM_PIN_DATA(STM_MODE_AF_PP, GPIO_PULLUP, GPIO_AF9_FDCAN2)},
+  {NC,    NP,     0}
+};
+#endif
+
 //*** ETHERNET ***
 
 #if defined(HAL_ETH_MODULE_ENABLED) || defined(HAL_ETH_LEGACY_MODULE_ENABLED)
