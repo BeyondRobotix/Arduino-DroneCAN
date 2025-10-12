@@ -121,17 +121,10 @@ void CANReceive(CanardCANFrame *rx_msg) {
     if (active_can_iface->receiveFD0(message)) {
         // Populate the Canard frame from the received library message.
         
-
         rx_msg->id = (0x1FFFFFFFU & message.id) & 0x1FFFFFFFU;
         rx_msg->id |= 1U << 31; // https://github.com/ArduPilot/ardupilot/blob/4d31a7320a1d2c38e2d742ae63c34f914febaa8f/libraries/AP_HAL_ChibiOS/CanIface.cpp#L570
    
-
         rx_msg->data_len = message.len;
-        
-        // Note: The CanardCANFrame struct in your build environment does not
-        // seem to have the 'canfd' member enabled, so we cannot set it here.
-        // The data length will indicate if it was a CAN FD frame.
-        // rx_msg->canfd = message.fd; 
 
         memcpy(rx_msg->data, message.data, message.len);
     } else {

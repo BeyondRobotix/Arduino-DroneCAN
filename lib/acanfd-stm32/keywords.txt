@@ -1,0 +1,30 @@
+#######################################
+# Datatypes (KEYWORD1)
+#######################################
+
+ACANFD_STM32_Settings	KEYWORD1
+ACANFD_STM32	KEYWORD1
+ACANFD_STM32_StandardFilters	KEYWORD1
+ACANFD_STM32_ExtendedFilters	KEYWORD1
+CANMessage	KEYWORD1
+CANFDMessage	KEYWORD1
+
+#######################################
+# Methods and Functions (KEYWORD2)
+#######################################
+
+begin	KEYWORD2
+end	KEYWORD2
+tryToSendReturnStatus	KEYWORD2
+availableFD0	KEYWORD2
+receiveFD0	KEYWORD2
+availableFD1	KEYWORD2
+receiveFD1	KEYWORD2
+dispatchReceivedMessage	KEYWORD2
+dispatchReceivedMessage0	KEYWORD2
+dispatchReceivedMessage1	KEYWORD2
+
+#######################################
+# Constants (LITERAL1)
+#######################################
+
