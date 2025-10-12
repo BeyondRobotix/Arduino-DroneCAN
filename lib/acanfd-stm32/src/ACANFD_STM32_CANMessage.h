@@ -1,3 +1,4 @@
+#ifdef ACANFD
 //------------------------------------------------------------------------------
 // Generic CAN Message
 // by Pierre Molinaro
@@ -46,4 +47,5 @@ typedef void (*ACANCallBackRoutine) (const CANMessage & inMessage) ;
 
 //------------------------------------------------------------------------------
 
+#endif
 #endif

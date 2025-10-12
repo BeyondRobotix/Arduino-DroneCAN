@@ -1,3 +1,4 @@
+#ifdef ACANFD
 //------------------------------------------------------------------------------
 
 #include <ACANFD_STM32_Settings.h>
@@ -272,3 +273,4 @@ uint32_t ACANFD_STM32_Settings::checkBitSettingConsistency (void) const {
 
 //------------------------------------------------------------------------------
 
+#endif

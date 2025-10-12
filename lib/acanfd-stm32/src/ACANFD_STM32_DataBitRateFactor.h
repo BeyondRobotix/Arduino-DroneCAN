@@ -1,3 +1,4 @@
+#ifdef ACANFD
 //------------------------------------------------------------------------------
 
 #ifndef ACANFD_DATA_BIT_RATE_FACTOR_DEFINED
@@ -24,4 +25,5 @@ enum class DataBitRateFactor : uint8_t {
 
 //------------------------------------------------------------------------------
 
+#endif
 #endif

@@ -1,3 +1,4 @@
+#ifdef ACANFD
 //------------------------------------------------------------------------------
 
 #include <ACANFD_STM32_Filters.h>
@@ -142,3 +143,4 @@ bool ACANFD_STM32_ExtendedFilters::addClassic (const uint32_t inIdentifier,
 }
 
 //------------------------------------------------------------------------------
+#endif
