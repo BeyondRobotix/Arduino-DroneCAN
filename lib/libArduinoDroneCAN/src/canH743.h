@@ -1,8 +1,9 @@
-#ifdef CANH7
+#ifdef CANH743
 #ifndef CAN_DRIVER_H7_
 #define CAN_DRIVER_H7_
 
 #include <canard.h>
+#include <ACANFD_STM32_from_cpp.h>
 
 /**
  * @brief Defines standard CAN bitrates.

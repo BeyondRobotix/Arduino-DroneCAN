@@ -1,16 +1,12 @@
-#ifdef CANH7
+#ifdef CANH743
 #include "Arduino.h"
-#include "canH7.h"
+#include "canH743.h"
 
 // This implementation relies on the ACANFD_STM32 library.
 // It includes the board-specific object and settings files you provided.
 // Please ensure the ACANFD_STM32 library is available in your project's include path.
 static const uint32_t FDCAN1_MESSAGE_RAM_WORD_SIZE = 2560;
 static const uint32_t FDCAN2_MESSAGE_RAM_WORD_SIZE = 2560; // FDCAN2 not used
-
-#include <ACANFD_STM32_from_cpp.h>
-#include "ACANFD_STM32_NUCLEO_H743ZI2-settings.h"
-#include "ACANFD_STM32_NUCLEO_H743ZI2-objects.h"
 
 // A static pointer to the active CAN driver instance (FDCAN1 or FDCAN2).
 // This allows the C-style API functions to interact with the C++ CAN object.
