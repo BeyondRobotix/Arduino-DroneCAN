@@ -9,6 +9,9 @@
 #ifdef CANH7
     #include <canH7.h>
 #endif
+#ifdef ARDUINO_NUCLEO_H723ZG
+    #include <canH723.h>
+#endif
 #include <EEPROM.h>
 #include <vector>
 #include <IWatchdog.h>

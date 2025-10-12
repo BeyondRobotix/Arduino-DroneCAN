@@ -1,12 +1,12 @@
-#define CANARD_ENABLE_CANFD 0
-#define CANARD_ENABLE_TAO_OPTION 0
+#define CANARD_ENABLE_CANFD 1
+#define CANARD_ENABLE_TAO_OPTION 1
 
 #include <Arduino.h>
 #include <dronecan.h>
 #include <IWatchdog.h>
 #include <app.h>
 #include <vector>
-#include <simple_dronecanmessages.h>
+// #include <simple_dronecanmessages.h>
 
 
 // set up your parameters here with default values. NODEID should be kept
@@ -80,7 +80,7 @@ void setup()
 {   
     // the following block of code should always run first. Adjust it at your own peril!
     app_setup();
-    IWatchdog.begin(2000000); 
+    IWatchdog.begin(2000000);
     Serial.begin(115200);
     Serial.println("Starting!");
     dronecan.version_major = 1;
@@ -120,7 +120,7 @@ void setup()
             pkt.current = analogRead(PA0);
             pkt.temperature = cpu_temp;
 
-            sendUavcanMsg(dronecan.canard, pkt);
+            // sendUavcanMsg(dronecan.canard, pkt);
         }
 
         dronecan.cycle();
