@@ -6,13 +6,12 @@
  * This software component is licensed by ST under BSD 3-Clause license,
  * the "License"; You may not use this file except in compliance with the
  * License. You may obtain a copy of the License at:
- *                        opensource.org/licenses/BSD-3-Clause
+ * opensource.org/licenses/BSD-3-Clause
  *
  *******************************************************************************
  */
-// #if defined(ARDUINO_GENERIC_L431CBTX) || defined(ARDUINO_GENERIC_L431CBUX) ||\
-//     defined(ARDUINO_GENERIC_L431CCTX) || defined(ARDUINO_GENERIC_L431CCUX)
 #include "pins_arduino.h"
+#include "Arduino.h"
 
 // Digital PinName array
 const PinName digitalPin[] = {
@@ -70,7 +69,20 @@ const uint32_t analogInputPin[] = {
     17  // A9,  PB1
 };
 
-// #endif /* ARDUINO_GENERIC_* */
+// --- SERIAL PORT INSTANTIATION ---
+// This forces the creation of the Serial objects using the pins defined in variant_MICRONODE.h
+
+// Serial1 (USART1: RX=PB7, TX=PB6)
+#if defined(PIN_SERIAL1_RX) && defined(PIN_SERIAL1_TX)
+HardwareSerial Serial1(PIN_SERIAL1_RX, PIN_SERIAL1_TX);
+#endif
+
+// Serial3 (USART3: RX=PB11, TX=PB10)
+#if defined(PIN_SERIAL3_RX) && defined(PIN_SERIAL3_TX)
+HardwareSerial Serial3(PIN_SERIAL3_RX, PIN_SERIAL3_TX);
+#endif
+// ---------------------------------
+
 #ifdef __cplusplus
 extern "C"
 {

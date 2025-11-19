@@ -136,6 +136,22 @@
   #define PIN_SERIAL_TX         PA2
 #endif
 
+// Serial 1 Definitions
+#ifndef PIN_SERIAL1_RX
+  #define PIN_SERIAL1_RX        PB7 
+#endif
+#ifndef PIN_SERIAL1_TX
+  #define PIN_SERIAL1_TX        PB6  
+#endif
+
+// Serial 3 Definitions
+#ifndef PIN_SERIAL3_RX
+  #define PIN_SERIAL3_RX        PB11 
+#endif
+#ifndef PIN_SERIAL3_TX
+  #define PIN_SERIAL3_TX        PB10 
+#endif
+
 // Extra HAL modules
 #if !defined(HAL_DAC_MODULE_DISABLED)
   #define HAL_DAC_MODULE_ENABLED
