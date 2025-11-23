@@ -26,6 +26,7 @@ interface_cfg = "interface/stlink.cfg"
 target_cfg = "target/stm32l4x.cfg"
 
 
+# Ensure .bin is created before upload
 def generate_bin(source, target, env):
     env.Execute(f"$OBJCOPY -O binary {elf_path} {firmware_path}")
 
