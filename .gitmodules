@@ -13,6 +13,3 @@
 [submodule "dronecan/libcanard_repo"]
 	path = dronecan/libcanard_repo
 	url = https://github.com/dronecan/libcanard.git
-[submodule "variants/BRMicroNode"]
-	path = variants/BRMicroNode
-	url = https://github.com/BeyondRobotix/BRMicroNodeVariant.git
