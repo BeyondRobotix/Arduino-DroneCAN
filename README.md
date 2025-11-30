@@ -10,8 +10,6 @@ This isn't intended to be used in the same way as AP_Periph, which supports a bu
 
 ## Features
 
-API changes can happen at any time in master. See the releases page to download a specific verison for your project.
-
 - Send DroneCAN messages ✅
 - Receive DroneCAN messages ✅
 - Standard DroneCAN under the hood (allocation, node info) ✅
