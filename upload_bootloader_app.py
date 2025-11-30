@@ -6,8 +6,12 @@ import subprocess
 # If Windows, use .exe. If Linux/Mac, use no extension.
 openocd_exec = "openocd.exe" if sys.platform.startswith("win") else "openocd"
 
-bootloader_path = os.path.join(env.subst("$PROJECT_DIR"), "MicroNodeBootloader.bin")
-firmware_path = os.path.join(env.subst("$BUILD_DIR"), "firmware.bin")
+bootloader_path = os.path.abspath(
+    os.path.join(env.subst("$PROJECT_DIR"), "MicroNodeBootloader.bin")
+).replace("\\", "/")
+firmware_path = os.path.abspath(
+    os.path.join(env.subst("$BUILD_DIR"), "firmware.bin")
+).replace("\\", "/")
 elf_path = os.path.join(env.subst("$BUILD_DIR"), "firmware.elf")
 openocd = os.path.join(
     env.subst("$PROJECT_PACKAGES_DIR"), "tool-openocd", "bin", openocd_exec
