@@ -32,7 +32,7 @@ void DroneCAN::init(CanardOnTransferReception onTransferReceived,
     }
 
     // initialise the internal LED
-    // pinMode(19, OUTPUT);
+    pinMode(19, OUTPUT);
 
     IWatchdog.reload();
 
@@ -42,11 +42,11 @@ void DroneCAN::init(CanardOnTransferReception onTransferReceived,
     // get the parameters in the EEPROM
     this->read_parameter_memory();
 
-    while(canardGetLocalNodeID(&this->canard) == CANARD_BROADCAST_NODE_ID)
+    while (canardGetLocalNodeID(&this->canard) == CANARD_BROADCAST_NODE_ID)
     {
         this->cycle();
         IWatchdog.reload();
-        // digitalWrite(19, this->led_state);
+        digitalWrite(19, this->led_state);
         this->led_state = !this->led_state;
     }
 }
@@ -80,7 +80,7 @@ void DroneCAN::cycle()
     {
         this->looptime = millis();
         this->process1HzTasks(this->micros64());
-        // digitalWrite(19, this->led_state);
+        digitalWrite(19, this->led_state);
         this->led_state = !this->led_state;
     }
 
@@ -227,6 +227,10 @@ void DroneCAN::handle_param_GetSet(CanardRxTransfer *transfer)
             p.value = req.value.real_value;
             EEPROM.put(idx * sizeof(float), p.value);
             break;
+        case UAVCAN_PROTOCOL_PARAM_VALUE_BOOLEAN_VALUE:
+            p.value = (req.value.boolean_value) ? 1.0f : 0.0f;
+            EEPROM.put(idx * sizeof(float), p.value);
+            break;
         default:
             // unsupported type
             break;
@@ -248,7 +252,11 @@ void DroneCAN::handle_param_GetSet(CanardRxTransfer *transfer)
         {
             rsp.value.integer_value = p.value;
         }
-        else
+        else if (p.type == UAVCAN_PROTOCOL_PARAM_VALUE_BOOLEAN_VALUE)
+        {
+            rsp.value.boolean_value = (p.value != 0.0f) ? 1 : 0;
+        }
+        else // real value
         {
             rsp.value.real_value = p.value;
         }
@@ -465,10 +473,10 @@ void DroneCAN::request_DNA()
     // See http://uavcan.org/Specification/6._Application_level_functions/#dynamic-node-id-allocation
     uint8_t allocation_request[CANARD_CAN_FRAME_MAX_DATA_LEN - 1];
     uint8_t pref_node_id = (uint8_t)(this->get_preferred_node_id() << 1U);
-    
+
     Serial.print("Requesting ID ");
     Serial.println(pref_node_id / 2); // not sure why this is over 2 .. something to do with the bit shifting but this is what it actually sets
-    
+
     allocation_request[0] = pref_node_id;
 
     if (DNA.node_id_allocation_unique_id_offset == 0)
