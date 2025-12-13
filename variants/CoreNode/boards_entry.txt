@@ -1,0 +1,13 @@
+# This file help to add generic board entry.
+# upload.maximum_size and product_line have to be verified
+# and changed if needed.
+# See: https://github.com/stm32duino/Arduino_Core_STM32/wiki/Add-a-new-variant-%28board%29
+
+# Generic H743XIHx
+GenH7.menu.pnum.GENERIC_H743XIHX=Generic H743XIHx
+GenH7.menu.pnum.GENERIC_H743XIHX.upload.maximum_size=2097152
+GenH7.menu.pnum.GENERIC_H743XIHX.upload.maximum_data_size=884736
+GenH7.menu.pnum.GENERIC_H743XIHX.build.board=GENERIC_H743XIHX
+GenH7.menu.pnum.GENERIC_H743XIHX.build.product_line=STM32H743xx
+GenH7.menu.pnum.GENERIC_H743XIHX.build.variant=STM32H7xx/H742X(G-I)H_H743X(G-I)H_H745X(G-I)H_H747X(G-I)H_H750XBH_H753XIH_H755XIH_H757XIH
+GenH7.menu.pnum.GENERIC_H743XIHX.debug.svd_file={runtime.tools.STM32_SVD.path}/svd/STM32H7xx/STM32H743.svd

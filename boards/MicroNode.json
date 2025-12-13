@@ -5,7 +5,7 @@
     "f_cpu": "80000000L",
     "mcu": "stm32l431CCU6",
     "product_line": "STM32L432xx",
-    "variant": "BRMicroNode"
+    "variant": "MicroNode"
   },
   "debug": {
     "default_tools": [

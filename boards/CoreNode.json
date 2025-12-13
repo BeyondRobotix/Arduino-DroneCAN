@@ -1,0 +1,49 @@
+{
+  "build": {
+    "cpu": "cortex-m7",
+    "extra_flags": "-DSTM32H7xx -DSTM32H743xx",
+    "f_cpu": "480000000L",
+    "mcu": "stm32h743xih6",
+    "product_line": "STM32H743xx",
+    "variant": "CoreNode"
+  },
+  "connectivity": [
+    "can",
+    "ethernet"
+  ],
+  "debug": {
+    "default_tools": [
+      "stlink"
+    ],
+    "jlink_device": "STM32H743XI",
+    "onboard_tools": [
+      "stlink"
+    ],
+    "openocd_board": "st_nucleo_h743zi",
+    "openocd_target": "stm32h7x",
+    "svd_path": "STM32H743.svd"
+  },
+  "frameworks": [
+    "cmsis",
+    "stm32cube",
+    "libopencm3",
+    "mbed",
+    "zephyr",
+    "arduino"
+  ],
+  "name": "Beyond Robotix Core Node",
+  "upload": {
+    "maximum_ram_size": 524288,
+    "maximum_size": 2097152,
+    "protocol": "stlink",
+    "protocols": [
+      "jlink",
+      "cmsis-dap",
+      "stlink",
+      "blackmagic",
+      "mbed"
+    ]
+  },
+  "url": "https://www.beyondrobotix.com",
+  "vendor": "Beyond Robotix"
+}

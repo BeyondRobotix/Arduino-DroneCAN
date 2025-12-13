@@ -5,6 +5,7 @@
 #include <vector>
 #include <simple_dronecanmessages.h>
 
+
 // set up your parameters here with default values. NODEID should be kept
 std::vector<DroneCAN::parameter> custom_parameters = {
     { "NODEID", UAVCAN_PROTOCOL_PARAM_VALUE_INTEGER_VALUE, 100,  0, 127 },
@@ -76,8 +77,9 @@ void setup()
 {   
     // the following block of code should always run first. Adjust it at your own peril!
     app_setup();
-    IWatchdog.begin(2000000); 
+    IWatchdog.begin(2000000);
     Serial.begin(115200);
+    Serial.println("Starting!");
     dronecan.version_major = 1;
     dronecan.version_minor = 0;
     dronecan.init(

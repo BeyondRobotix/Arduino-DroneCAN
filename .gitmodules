@@ -7,9 +7,6 @@
 [submodule "dronecan/DSDL"]
 	path = dronecan/DSDL
 	url = https://github.com/dronecan/DSDL.git
-[submodule "lib/ArduinoDroneCANlib"]
-	path = lib/ArduinoDroneCANlib
-	url = https://github.com/BeyondRobotix/ArduinoDroneCANlib.git
 [submodule "dronecan/libcanard_repo"]
 	path = dronecan/libcanard_repo
 	url = https://github.com/dronecan/libcanard.git
