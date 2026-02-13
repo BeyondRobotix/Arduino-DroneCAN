@@ -20,7 +20,7 @@
 #define C_TO_KELVIN(temp) (temp + 273.15f)
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof(x[0]))
 #define APP_BOOTLOADER_COMMS_MAGIC 0xc544ad9a
-#define PREFERRED_NODE_ID 69
+#define PREFERRED_NODE_ID 100
 
 class DroneCAN
 {
@@ -78,6 +78,12 @@ private:
     void processTx();
     void processRx();
     static uint64_t micros64();
+
+    // Helper function to set parameter by index with validation and EEPROM persistence
+    void setParameterByIndex(size_t idx, float value);
+
+    // Helper function to find parameter index by name
+    size_t getParameterIndex(const char *name, size_t name_len);
 
 public:
     struct parameter

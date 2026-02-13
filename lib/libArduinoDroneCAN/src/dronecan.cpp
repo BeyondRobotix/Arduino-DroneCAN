@@ -65,7 +65,7 @@ uint8_t DroneCAN::get_preferred_node_id()
     {
         Serial.println("No NODEID in storage, setting..");
         this->setParameter("NODEID", PREFERRED_NODE_ID);
-        return PREFERRED_NODE_ID;
+        return get_preferred_node_id();
     }
 }
 
@@ -191,16 +191,10 @@ void DroneCAN::handle_param_GetSet(CanardRxTransfer *transfer)
     {
         // Name‐based lookup
         Serial.print("Name based lookup");
-        for (size_t i = 0; i < parameters.size(); i++)
+        idx = getParameterIndex((const char *)req.name.data, req.name.len);
+        if (idx != SIZE_MAX)
         {
-            auto &p = parameters[i];
-            if (req.name.len == strlen(p.name) &&
-                memcmp(req.name.data, p.name, req.name.len) == 0)
-            {
-                idx = i;
-                Serial.println(idx);
-                break;
-            }
+            Serial.println(idx);
         }
     }
     // If that failed, try index‐based lookup
@@ -234,18 +228,8 @@ void DroneCAN::handle_param_GetSet(CanardRxTransfer *transfer)
             break;
         }
 
-        // Validate against min/max constraints
-        if (new_value < p.min_value)
-        {
-            new_value = p.min_value;
-        }
-        else if (new_value > p.max_value)
-        {
-            new_value = p.max_value;
-        }
-
-        p.value = new_value;
-        EEPROM.put(idx * sizeof(float), p.value);
+        // Use helper to validate, set, and persist
+        setParameterByIndex(idx, new_value);
     }
 
     IWatchdog.reload();
@@ -361,43 +345,71 @@ void DroneCAN::read_parameter_memory()
 */
 float DroneCAN::getParameter(const char *name)
 {
-    for (size_t i = 0; i < parameters.size(); i++)
+    size_t idx = getParameterIndex(name, strlen(name));
+    if (idx != SIZE_MAX)
     {
-        auto &p = parameters[i];
-        if (strlen(name) == strlen(p.name) &&
-            memcmp(name, p.name, strlen(name)) == 0)
-        {
-            return parameters[i].value;
-        }
+        return parameters[idx].value;
     }
     return __FLT_MIN__;
 }
 
 /*
-    Set a parameter from storage by name
-    Values get stored as floats
-    returns -1 if storage failed, 0 if good
+    Helper function to find parameter index by name
+    Returns SIZE_MAX if not found
 */
-int DroneCAN::setParameter(const char *name, float value)
+size_t DroneCAN::getParameterIndex(const char *name, size_t name_len)
 {
     for (size_t i = 0; i < parameters.size(); i++)
     {
         auto &p = parameters[i];
-        if (strlen(name) == strlen(p.name) &&
-            memcmp(name, p.name, strlen(name)) == 0)
+        if (name_len == strlen(p.name) &&
+            memcmp(name, p.name, name_len) == 0)
         {
-            // Validate against min/max constraints
-            if (value < p.min_value)
-            {
-                value = p.min_value;
-            }
-            else if (value > p.max_value)
-            {
-                value = p.max_value;
-            }
-            parameters[i].value = value;
-            return 0;
+            return i;
         }
+    }
+    return SIZE_MAX;
+}
+
+/*
+    Helper function to set parameter by index with validation and EEPROM persistence
+*/
+void DroneCAN::setParameterByIndex(size_t idx, float value)
+{
+    if (idx >= parameters.size())
+    {
+        return;
+    }
+
+    auto &p = parameters[idx];
+
+    // Validate against min/max constraints
+    if (value < p.min_value)
+    {
+        value = p.min_value;
+    }
+    else if (value > p.max_value)
+    {
+        value = p.max_value;
+    }
+
+    // Set value and persist to EEPROM
+    parameters[idx].value = value;
+    EEPROM.put(idx * sizeof(float), value);
+}
+
+/*
+    Set a parameter from storage by name
+    Values get stored as floats and persisted to EEPROM
+    returns -1 if storage failed, 0 if good
+*/
+int DroneCAN::setParameter(const char *name, float value)
+{
+    size_t idx = getParameterIndex(name, strlen(name));
+    if (idx != SIZE_MAX)
+    {
+        setParameterByIndex(idx, value);
+        return 0;
     }
     return -1;
 }
@@ -680,15 +692,6 @@ void DroneCAN::handle_file_read_response(CanardRxTransfer *transfer)
         return;
     }
 
-    // write(fwupdate.fd, pkt.data.data, pkt.data.len);
-    // if (pkt.data.len < 256)
-    // {
-    //     /* firmware updare done */
-    //     close(fwupdate.fd);
-    //     Serial.println("Firmwate update complete\n");
-    //     fwupdate.node_id = 0;
-    //     return;
-    // }
     fwupdate.offset += pkt.data.len;
 
     /* trigger a new read */
