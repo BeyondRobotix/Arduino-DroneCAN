@@ -1,0 +1,15 @@
+[project]
+name = "arduino-dronecan-tests"
+version = "1.0.0"
+description = "Hardware test suite for Arduino-DroneCAN"
+requires-python = ">=3.8"
+dependencies = [
+    "dronecan>=1.0.0",
+    "pytest>=7.4.0",
+    "pytest-timeout>=2.1.0",
+    "pytest-html>=3.2.0",
+    "pytest-sugar>=0.9.7",
+    "rich>=13.0.0",
+    "pyyaml>=6.0",
+    "pydantic>=2.0.0",
+]

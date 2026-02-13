@@ -1,0 +1,60 @@
+# Hardware Test Configuration
+
+# CAN Interface Configuration
+can_interface:
+  # Interface string - adjust for your adapter
+  # Examples:
+  #   - SLCAN: "slcan:/dev/ttyUSB0" (Linux)
+  #   - SLCAN: "slcan:COM3" (Windows)
+  #   - SocketCAN: "socketcan:can0" (Linux)
+  #   - PCAN: "pcan:PCAN_USBBUS1"
+  interface: "slcan:COM3"
+  bitrate: 1000000  # 1 Mbps
+
+# Device Under Test (DUT) Configuration
+device:
+  node_id: 100  # Expected node ID (matches NODEID parameter default)
+  name: "Beyond Robotix Node"
+  boot_time: 3.0  # Seconds to wait after reset
+
+# Test Node Configuration (PC running tests)
+test_node:
+  node_id: 127  # Node ID for test runner
+
+# Message Testing Configuration
+messages:
+  battery_info:
+    expected_frequency: 10.0  # Hz
+    frequency_tolerance: 0.2   # ±20%
+    voltage_range: [0, 4095]   # ADC range
+    current_range: [0, 4095]   # ADC range
+    temp_range: [-40, 125]     # °C for STM32
+
+# Parameter Testing Configuration
+parameters:
+  expected_params:
+    - "NODEID"
+    - "PARM_1"
+    - "PARM_2"
+
+  default_values:
+    NODEID: 100
+    PARM_1: 0.0
+    PARM_2: 0.0
+
+  value_ranges:
+    NODEID: [0, 127]
+    PARM_1: [0.0, 100.0]
+    PARM_2: [0.0, 100.0]
+
+# Timing Tolerances
+timing:
+  message_collection_time: 1.1  # Seconds to collect messages
+  parameter_response_timeout: 2.0  # Seconds
+  heartbeat_timeout: 3.0  # Seconds
+
+# Test Behavior
+test_settings:
+  cleanup_after_test: true
+  restore_parameters: true
+  verbose_output: false

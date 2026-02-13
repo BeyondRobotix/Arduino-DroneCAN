@@ -1,0 +1,34 @@
+# Test artifacts
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.cache/
+
+# Test reports
+test_reports/
+*.html
+.coverage
+htmlcov/
+*.log
+
+# Virtual environment
+venv/
+env/
+.venv/
+
+# UV
+uv.lock
+.python-version
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
