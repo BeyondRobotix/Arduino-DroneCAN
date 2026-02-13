@@ -89,6 +89,13 @@ public:
         float max_value;
     };
 
+    // Shorter type aliases for parameter definitions
+    static constexpr uavcan_protocol_param_Value_type_t INT = UAVCAN_PROTOCOL_PARAM_VALUE_INTEGER_VALUE;
+    static constexpr uavcan_protocol_param_Value_type_t REAL = UAVCAN_PROTOCOL_PARAM_VALUE_REAL_VALUE;
+    static constexpr uavcan_protocol_param_Value_type_t FLOAT = UAVCAN_PROTOCOL_PARAM_VALUE_REAL_VALUE;
+    static constexpr uavcan_protocol_param_Value_type_t BOOL = UAVCAN_PROTOCOL_PARAM_VALUE_BOOLEAN_VALUE;
+    static constexpr uavcan_protocol_param_Value_type_t STRING = UAVCAN_PROTOCOL_PARAM_VALUE_STRING_VALUE;
+
     std::vector<parameter> parameters;
 
     // copy a parameter list into the object

@@ -8,14 +8,9 @@
 
 // set up your parameters here with default values. NODEID should be kept
 std::vector<DroneCAN::parameter> custom_parameters = {
-    { "NODEID", UAVCAN_PROTOCOL_PARAM_VALUE_INTEGER_VALUE, 100,  0, 127 },
-    { "PARM_1", UAVCAN_PROTOCOL_PARAM_VALUE_REAL_VALUE,   0.0f, 0.0f, 100.0f },
-    { "PARM_2", UAVCAN_PROTOCOL_PARAM_VALUE_REAL_VALUE,   0.0f, 0.0f, 100.0f },
-    { "PARM_3", UAVCAN_PROTOCOL_PARAM_VALUE_REAL_VALUE,   0.0f, 0.0f, 100.0f },
-    { "PARM_4", UAVCAN_PROTOCOL_PARAM_VALUE_REAL_VALUE,   0.0f, 0.0f, 100.0f },
-    { "PARM_5", UAVCAN_PROTOCOL_PARAM_VALUE_REAL_VALUE,   0.0f, 0.0f, 100.0f },
-    { "PARM_6", UAVCAN_PROTOCOL_PARAM_VALUE_REAL_VALUE,   0.0f, 0.0f, 100.0f },
-    { "PARM_7", UAVCAN_PROTOCOL_PARAM_VALUE_REAL_VALUE,   0.0f, 0.0f, 100.0f },
+    { "NODEID", DroneCAN::INT,   100,  0, 127 },
+    { "PARM_1", DroneCAN::REAL,  0.0f, 0.0f, 100.0f },
+    { "PARM_2", DroneCAN::REAL,  0.0f, 0.0f, 100.0f },
 };
 
 DroneCAN dronecan;
@@ -80,8 +75,6 @@ void setup()
     IWatchdog.begin(2000000);
     Serial.begin(115200);
     Serial.println("Starting!");
-    dronecan.version_major = 1;
-    dronecan.version_minor = 0;
     dronecan.init(
         onTransferReceived, 
         shouldAcceptTransfer, 

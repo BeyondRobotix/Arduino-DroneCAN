@@ -10,9 +10,9 @@
 
 // set up your parameters here with default values. NODEID should be kept
 std::vector<DroneCAN::parameter> custom_parameters = {
-    {"NODEID", UAVCAN_PROTOCOL_PARAM_VALUE_INTEGER_VALUE, 100, 0, 127},
-    {"DEVICE_ID", UAVCAN_PROTOCOL_PARAM_VALUE_INTEGER_VALUE, 0, 0, 127},
-    {"BATT_EN", UAVCAN_PROTOCOL_PARAM_VALUE_INTEGER_VALUE, 0, 0, 1},
+    {"NODEID",    DroneCAN::INT, 100, 0, 127},
+    {"DEVICE_ID", DroneCAN::INT, 0,   0, 127},
+    {"BATT_EN",   DroneCAN::INT, 0,   0, 1},
 };
 
 DroneCAN dronecan;
