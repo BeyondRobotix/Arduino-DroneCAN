@@ -57,7 +57,7 @@ void DroneCAN::init(CanardOnTransferReception onTransferReceived,
 uint8_t DroneCAN::get_preferred_node_id()
 {
     float ret = this->getParameter("NODEID");
-    if (ret > 0 || ret < 127)
+    if (ret >= 0 && ret <= 127)
     {
         return (uint8_t)ret;
     }
@@ -213,28 +213,39 @@ void DroneCAN::handle_param_GetSet(CanardRxTransfer *transfer)
 
     IWatchdog.reload();
 
-    // If it’s a _set_ request, apply the new value
+    // If it's a _set_ request, apply the new value
     if (idx != SIZE_MAX && req.value.union_tag != UAVCAN_PROTOCOL_PARAM_VALUE_EMPTY)
     {
         auto &p = parameters[idx];
+        float new_value = 0.0f;
         switch (p.type)
         {
         case UAVCAN_PROTOCOL_PARAM_VALUE_INTEGER_VALUE:
-            p.value = req.value.integer_value;
-            EEPROM.put(idx * sizeof(float), p.value);
+            new_value = req.value.integer_value;
             break;
         case UAVCAN_PROTOCOL_PARAM_VALUE_REAL_VALUE:
-            p.value = req.value.real_value;
-            EEPROM.put(idx * sizeof(float), p.value);
+            new_value = req.value.real_value;
             break;
         case UAVCAN_PROTOCOL_PARAM_VALUE_BOOLEAN_VALUE:
-            p.value = (req.value.boolean_value) ? 1.0f : 0.0f;
-            EEPROM.put(idx * sizeof(float), p.value);
+            new_value = (req.value.boolean_value) ? 1.0f : 0.0f;
             break;
         default:
             // unsupported type
             break;
         }
+
+        // Validate against min/max constraints
+        if (new_value < p.min_value)
+        {
+            new_value = p.min_value;
+        }
+        else if (new_value > p.max_value)
+        {
+            new_value = p.max_value;
+        }
+
+        p.value = new_value;
+        EEPROM.put(idx * sizeof(float), p.value);
     }
 
     IWatchdog.reload();
@@ -250,7 +261,7 @@ void DroneCAN::handle_param_GetSet(CanardRxTransfer *transfer)
         rsp.value.union_tag = p.type;
         if (p.type == UAVCAN_PROTOCOL_PARAM_VALUE_INTEGER_VALUE)
         {
-            rsp.value.integer_value = p.value;
+            rsp.value.integer_value = (int64_t)(p.value + (p.value >= 0 ? 0.5f : -0.5f));
         }
         else if (p.type == UAVCAN_PROTOCOL_PARAM_VALUE_BOOLEAN_VALUE)
         {
@@ -306,7 +317,7 @@ void DroneCAN::handle_param_ExecuteOpcode(CanardRxTransfer *transfer)
         // Save all the changed parameters to permanent storage
         for (size_t i = 0; i < parameters.size(); i++)
         {
-            EEPROM.put(i * 4, parameters[i].value);
+            EEPROM.put(i * sizeof(float), parameters[i].value);
         }
     }
 
@@ -338,7 +349,7 @@ void DroneCAN::read_parameter_memory()
 
     for (size_t i = 0; i < parameters.size(); i++)
     {
-        EEPROM.get(i * 4, p_val);
+        EEPROM.get(i * sizeof(float), p_val);
         parameters[i].value = p_val;
     }
 }
@@ -375,6 +386,15 @@ int DroneCAN::setParameter(const char *name, float value)
         if (strlen(name) == strlen(p.name) &&
             memcmp(name, p.name, strlen(name)) == 0)
         {
+            // Validate against min/max constraints
+            if (value < p.min_value)
+            {
+                value = p.min_value;
+            }
+            else if (value > p.max_value)
+            {
+                value = p.max_value;
+            }
             parameters[i].value = value;
             return 0;
         }
