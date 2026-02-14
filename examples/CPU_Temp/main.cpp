@@ -40,7 +40,7 @@ static bool shouldAcceptTransfer(const CanardInstance *ins,
                                  uint8_t source_node_id)
 
 {
-    return false || DroneCANshoudlAcceptTransfer(ins, out_data_type_signature, data_type_id, transfer_type, source_node_id);
+    return false || DroneCANshouldAcceptTransfer(ins, out_data_type_signature, data_type_id, transfer_type, source_node_id);
 }
 
 void setup()

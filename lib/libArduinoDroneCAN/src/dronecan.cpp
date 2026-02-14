@@ -878,7 +878,7 @@ void DroneCANonTransferReceived(DroneCAN &dronecan, CanardInstance *ins, CanardR
 /*
     Bare minimum message signing required for DroneCAN library
 */
-bool DroneCANshoudlAcceptTransfer(const CanardInstance *ins,
+bool DroneCANshouldAcceptTransfer(const CanardInstance *ins,
                                   uint64_t *out_data_type_signature,
                                   uint16_t data_type_id,
                                   CanardTransferType transfer_type,
