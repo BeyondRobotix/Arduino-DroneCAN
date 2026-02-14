@@ -111,6 +111,7 @@ public:
     }
 
     void init(CanardOnTransferReception onTransferReceived, CanardShouldAcceptTransfer shouldAcceptTransfer, const std::vector<parameter> &param_list, const char *name);
+    void init(const std::vector<parameter> &param_list, const char *name);
 
     CanardInstance canard;
     int version_major = 0;

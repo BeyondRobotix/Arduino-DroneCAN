@@ -51,6 +51,75 @@ void DroneCAN::init(CanardOnTransferReception onTransferReceived,
     }
 }
 
+// Adapter functions that match libcanard callback signatures and forward
+// to the library-provided helpers using the CanardInstance user_reference.
+static void DroneCAN_on_reception_adapter(CanardInstance* ins, CanardRxTransfer* transfer)
+{
+    DroneCAN* self = (DroneCAN*)canardGetUserReference(ins);
+    if (self)
+    {
+        DroneCANonTransferReceived(*self, ins, transfer);
+    }
+}
+
+static bool DroneCAN_should_accept_adapter(const CanardInstance* ins,
+                                           uint64_t* out_data_type_signature,
+                                           uint16_t data_type_id,
+                                           CanardTransferType transfer_type,
+                                           uint8_t source_node_id)
+{
+    // Use the existing helper as the default behaviour
+    return DroneCANshouldAcceptTransfer(ins, out_data_type_signature, data_type_id, transfer_type, source_node_id);
+}
+
+// Convenience init: uses the built-in adapters and stores `this` as the
+// CanardInstance user reference so the adapters can forward to the proper
+// DroneCAN instance.
+void DroneCAN::init(const std::vector<parameter> &param_list, const char *name)
+{
+    // start our CAN driver
+    CANInit(CAN_1000KBPS, 2);
+
+    strncpy(this->node_name, name, sizeof(this->node_name));
+
+    IWatchdog.reload();
+
+    canardInit(&canard,
+               memory_pool,
+               sizeof(memory_pool),
+               DroneCAN_on_reception_adapter,
+               DroneCAN_should_accept_adapter,
+               this);
+
+    if (this->node_id > 0)
+    {
+        canardSetLocalNodeID(&this->canard, node_id);
+    }
+    else
+    {
+        Serial.println("Waiting for DNA node allocation");
+    }
+
+    // initialise the internal LED
+    pinMode(19, OUTPUT);
+
+    IWatchdog.reload();
+
+    // put our user params into memory
+    this->set_parameters(param_list);
+
+    // get the parameters in the EEPROM
+    this->read_parameter_memory();
+
+    while (canardGetLocalNodeID(&this->canard) == CANARD_BROADCAST_NODE_ID)
+    {
+        this->cycle();
+        IWatchdog.reload();
+        digitalWrite(19, this->led_state);
+        this->led_state = !this->led_state;
+    }
+}
+
 /*
     Gets the node id our DNA requests on init
 */
