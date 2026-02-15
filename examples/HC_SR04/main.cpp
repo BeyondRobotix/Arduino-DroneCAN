@@ -11,7 +11,7 @@ API version v1.3
 #include <HCSR04.h>
 
 std::vector<DroneCAN::parameter> custom_parameters = {
-    { "NODEID", UAVCAN_PROTOCOL_PARAM_VALUE_INTEGER_VALUE, 100,  0, 127 },
+    { "NODEID", DroneCAN::INT, 100, 0, 127 },
 };
 
 DroneCAN dronecan;
@@ -38,7 +38,7 @@ static bool shouldAcceptTransfer(const CanardInstance *ins,
                                  uint8_t source_node_id)
 
 {
-    return false || DroneCANshoudlAcceptTransfer(ins, out_data_type_signature, data_type_id, transfer_type, source_node_id);
+    return false || DroneCANshouldAcceptTransfer(ins, out_data_type_signature, data_type_id, transfer_type, source_node_id);
 }
 
 const byte triggerPin = PA8;

@@ -16,14 +16,14 @@ Servo myservo;
 
 // set up your parameters here with default values. NODEID should be kept
 std::vector<DroneCAN::parameter> custom_parameters = {
-    { "NODEID", UAVCAN_PROTOCOL_PARAM_VALUE_INTEGER_VALUE, 100,  0, 127 },
-    { "PARM_1", UAVCAN_PROTOCOL_PARAM_VALUE_REAL_VALUE,   0.0f, 0.0f, 100.0f },
-    { "PARM_2", UAVCAN_PROTOCOL_PARAM_VALUE_REAL_VALUE,   0.0f, 0.0f, 100.0f },
-    { "PARM_3", UAVCAN_PROTOCOL_PARAM_VALUE_REAL_VALUE,   0.0f, 0.0f, 100.0f },
-    { "PARM_4", UAVCAN_PROTOCOL_PARAM_VALUE_REAL_VALUE,   0.0f, 0.0f, 100.0f },
-    { "PARM_5", UAVCAN_PROTOCOL_PARAM_VALUE_REAL_VALUE,   0.0f, 0.0f, 100.0f },
-    { "PARM_6", UAVCAN_PROTOCOL_PARAM_VALUE_REAL_VALUE,   0.0f, 0.0f, 100.0f },
-    { "PARM_7", UAVCAN_PROTOCOL_PARAM_VALUE_REAL_VALUE,   0.0f, 0.0f, 100.0f },
+    { "NODEID", DroneCAN::INT,  100,  0, 127 },
+    { "PARM_1", DroneCAN::REAL, 0.0f, 0.0f, 100.0f },
+    { "PARM_2", DroneCAN::REAL, 0.0f, 0.0f, 100.0f },
+    { "PARM_3", DroneCAN::REAL, 0.0f, 0.0f, 100.0f },
+    { "PARM_4", DroneCAN::REAL, 0.0f, 0.0f, 100.0f },
+    { "PARM_5", DroneCAN::REAL, 0.0f, 0.0f, 100.0f },
+    { "PARM_6", DroneCAN::REAL, 0.0f, 0.0f, 100.0f },
+    { "PARM_7", DroneCAN::REAL, 0.0f, 0.0f, 100.0f },
 };
 
 DroneCAN dronecan;
@@ -78,7 +78,7 @@ static bool shouldAcceptTransfer(const CanardInstance *ins,
         }
     }
 
-    return false || DroneCANshoudlAcceptTransfer(ins, out_data_type_signature, data_type_id, transfer_type, source_node_id);
+    return false || DroneCANshouldAcceptTransfer(ins, out_data_type_signature, data_type_id, transfer_type, source_node_id);
 }
 
 void setup()

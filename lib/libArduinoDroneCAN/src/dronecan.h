@@ -20,7 +20,7 @@
 #define C_TO_KELVIN(temp) (temp + 273.15f)
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof(x[0]))
 #define APP_BOOTLOADER_COMMS_MAGIC 0xc544ad9a
-#define PREFERRED_NODE_ID 69
+#define PREFERRED_NODE_ID 100
 
 class DroneCAN
 {
@@ -79,6 +79,12 @@ private:
     void processRx();
     static uint64_t micros64();
 
+    // Helper function to set parameter by index with validation and EEPROM persistence
+    void setParameterByIndex(size_t idx, float value);
+
+    // Helper function to find parameter index by name
+    size_t getParameterIndex(const char *name, size_t name_len);
+
 public:
     struct parameter
     {
@@ -89,6 +95,13 @@ public:
         float max_value;
     };
 
+    // Shorter type aliases for parameter definitions
+    static constexpr uavcan_protocol_param_Value_type_t INT = UAVCAN_PROTOCOL_PARAM_VALUE_INTEGER_VALUE;
+    static constexpr uavcan_protocol_param_Value_type_t REAL = UAVCAN_PROTOCOL_PARAM_VALUE_REAL_VALUE;
+    static constexpr uavcan_protocol_param_Value_type_t FLOAT = UAVCAN_PROTOCOL_PARAM_VALUE_REAL_VALUE;
+    static constexpr uavcan_protocol_param_Value_type_t BOOL = UAVCAN_PROTOCOL_PARAM_VALUE_BOOLEAN_VALUE;
+    static constexpr uavcan_protocol_param_Value_type_t STRING = UAVCAN_PROTOCOL_PARAM_VALUE_STRING_VALUE;
+
     std::vector<parameter> parameters;
 
     // copy a parameter list into the object
@@ -98,6 +111,7 @@ public:
     }
 
     void init(CanardOnTransferReception onTransferReceived, CanardShouldAcceptTransfer shouldAcceptTransfer, const std::vector<parameter> &param_list, const char *name);
+    void init(const std::vector<parameter> &param_list, const char *name);
 
     CanardInstance canard;
     int version_major = 0;
@@ -120,7 +134,7 @@ public:
 };
 
 void DroneCANonTransferReceived(DroneCAN &dronecan, CanardInstance *ins, CanardRxTransfer *transfer);
-bool DroneCANshoudlAcceptTransfer(const CanardInstance *ins,
+bool DroneCANshouldAcceptTransfer(const CanardInstance *ins,
                                   uint64_t *out_data_type_signature,
                                   uint16_t data_type_id,
                                   CanardTransferType transfer_type,

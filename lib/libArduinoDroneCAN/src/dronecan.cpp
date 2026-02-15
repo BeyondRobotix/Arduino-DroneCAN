@@ -51,13 +51,82 @@ void DroneCAN::init(CanardOnTransferReception onTransferReceived,
     }
 }
 
+// Adapter functions that match libcanard callback signatures and forward
+// to the library-provided helpers using the CanardInstance user_reference.
+static void DroneCAN_on_reception_adapter(CanardInstance* ins, CanardRxTransfer* transfer)
+{
+    DroneCAN* self = (DroneCAN*)canardGetUserReference(ins);
+    if (self)
+    {
+        DroneCANonTransferReceived(*self, ins, transfer);
+    }
+}
+
+static bool DroneCAN_should_accept_adapter(const CanardInstance* ins,
+                                           uint64_t* out_data_type_signature,
+                                           uint16_t data_type_id,
+                                           CanardTransferType transfer_type,
+                                           uint8_t source_node_id)
+{
+    // Use the existing helper as the default behaviour
+    return DroneCANshouldAcceptTransfer(ins, out_data_type_signature, data_type_id, transfer_type, source_node_id);
+}
+
+// Convenience init: uses the built-in adapters and stores `this` as the
+// CanardInstance user reference so the adapters can forward to the proper
+// DroneCAN instance.
+void DroneCAN::init(const std::vector<parameter> &param_list, const char *name)
+{
+    // start our CAN driver
+    CANInit(CAN_1000KBPS, 2);
+
+    strncpy(this->node_name, name, sizeof(this->node_name));
+
+    IWatchdog.reload();
+
+    canardInit(&canard,
+               memory_pool,
+               sizeof(memory_pool),
+               DroneCAN_on_reception_adapter,
+               DroneCAN_should_accept_adapter,
+               this);
+
+    if (this->node_id > 0)
+    {
+        canardSetLocalNodeID(&this->canard, node_id);
+    }
+    else
+    {
+        Serial.println("Waiting for DNA node allocation");
+    }
+
+    // initialise the internal LED
+    pinMode(19, OUTPUT);
+
+    IWatchdog.reload();
+
+    // put our user params into memory
+    this->set_parameters(param_list);
+
+    // get the parameters in the EEPROM
+    this->read_parameter_memory();
+
+    while (canardGetLocalNodeID(&this->canard) == CANARD_BROADCAST_NODE_ID)
+    {
+        this->cycle();
+        IWatchdog.reload();
+        digitalWrite(19, this->led_state);
+        this->led_state = !this->led_state;
+    }
+}
+
 /*
     Gets the node id our DNA requests on init
 */
 uint8_t DroneCAN::get_preferred_node_id()
 {
     float ret = this->getParameter("NODEID");
-    if (ret > 0 || ret < 127)
+    if (ret >= 0 && ret <= 127)
     {
         return (uint8_t)ret;
     }
@@ -65,7 +134,7 @@ uint8_t DroneCAN::get_preferred_node_id()
     {
         Serial.println("No NODEID in storage, setting..");
         this->setParameter("NODEID", PREFERRED_NODE_ID);
-        return PREFERRED_NODE_ID;
+        return get_preferred_node_id();
     }
 }
 
@@ -191,16 +260,10 @@ void DroneCAN::handle_param_GetSet(CanardRxTransfer *transfer)
     {
         // Name‐based lookup
         Serial.print("Name based lookup");
-        for (size_t i = 0; i < parameters.size(); i++)
+        idx = getParameterIndex((const char *)req.name.data, req.name.len);
+        if (idx != SIZE_MAX)
         {
-            auto &p = parameters[i];
-            if (req.name.len == strlen(p.name) &&
-                memcmp(req.name.data, p.name, req.name.len) == 0)
-            {
-                idx = i;
-                Serial.println(idx);
-                break;
-            }
+            Serial.println(idx);
         }
     }
     // If that failed, try index‐based lookup
@@ -213,28 +276,29 @@ void DroneCAN::handle_param_GetSet(CanardRxTransfer *transfer)
 
     IWatchdog.reload();
 
-    // If it’s a _set_ request, apply the new value
+    // If it's a _set_ request, apply the new value
     if (idx != SIZE_MAX && req.value.union_tag != UAVCAN_PROTOCOL_PARAM_VALUE_EMPTY)
     {
         auto &p = parameters[idx];
+        float new_value = 0.0f;
         switch (p.type)
         {
         case UAVCAN_PROTOCOL_PARAM_VALUE_INTEGER_VALUE:
-            p.value = req.value.integer_value;
-            EEPROM.put(idx * sizeof(float), p.value);
+            new_value = req.value.integer_value;
             break;
         case UAVCAN_PROTOCOL_PARAM_VALUE_REAL_VALUE:
-            p.value = req.value.real_value;
-            EEPROM.put(idx * sizeof(float), p.value);
+            new_value = req.value.real_value;
             break;
         case UAVCAN_PROTOCOL_PARAM_VALUE_BOOLEAN_VALUE:
-            p.value = (req.value.boolean_value) ? 1.0f : 0.0f;
-            EEPROM.put(idx * sizeof(float), p.value);
+            new_value = (req.value.boolean_value) ? 1.0f : 0.0f;
             break;
         default:
             // unsupported type
             break;
         }
+
+        // Use helper to validate, set, and persist
+        setParameterByIndex(idx, new_value);
     }
 
     IWatchdog.reload();
@@ -250,7 +314,7 @@ void DroneCAN::handle_param_GetSet(CanardRxTransfer *transfer)
         rsp.value.union_tag = p.type;
         if (p.type == UAVCAN_PROTOCOL_PARAM_VALUE_INTEGER_VALUE)
         {
-            rsp.value.integer_value = p.value;
+            rsp.value.integer_value = (int64_t)(p.value + (p.value >= 0 ? 0.5f : -0.5f));
         }
         else if (p.type == UAVCAN_PROTOCOL_PARAM_VALUE_BOOLEAN_VALUE)
         {
@@ -306,7 +370,7 @@ void DroneCAN::handle_param_ExecuteOpcode(CanardRxTransfer *transfer)
         // Save all the changed parameters to permanent storage
         for (size_t i = 0; i < parameters.size(); i++)
         {
-            EEPROM.put(i * 4, parameters[i].value);
+            EEPROM.put(i * sizeof(float), parameters[i].value);
         }
     }
 
@@ -338,7 +402,7 @@ void DroneCAN::read_parameter_memory()
 
     for (size_t i = 0; i < parameters.size(); i++)
     {
-        EEPROM.get(i * 4, p_val);
+        EEPROM.get(i * sizeof(float), p_val);
         parameters[i].value = p_val;
     }
 }
@@ -350,34 +414,71 @@ void DroneCAN::read_parameter_memory()
 */
 float DroneCAN::getParameter(const char *name)
 {
-    for (size_t i = 0; i < parameters.size(); i++)
+    size_t idx = getParameterIndex(name, strlen(name));
+    if (idx != SIZE_MAX)
     {
-        auto &p = parameters[i];
-        if (strlen(name) == strlen(p.name) &&
-            memcmp(name, p.name, strlen(name)) == 0)
-        {
-            return parameters[i].value;
-        }
+        return parameters[idx].value;
     }
     return __FLT_MIN__;
 }
 
 /*
-    Set a parameter from storage by name
-    Values get stored as floats
-    returns -1 if storage failed, 0 if good
+    Helper function to find parameter index by name
+    Returns SIZE_MAX if not found
 */
-int DroneCAN::setParameter(const char *name, float value)
+size_t DroneCAN::getParameterIndex(const char *name, size_t name_len)
 {
     for (size_t i = 0; i < parameters.size(); i++)
     {
         auto &p = parameters[i];
-        if (strlen(name) == strlen(p.name) &&
-            memcmp(name, p.name, strlen(name)) == 0)
+        if (name_len == strlen(p.name) &&
+            memcmp(name, p.name, name_len) == 0)
         {
-            parameters[i].value = value;
-            return 0;
+            return i;
         }
+    }
+    return SIZE_MAX;
+}
+
+/*
+    Helper function to set parameter by index with validation and EEPROM persistence
+*/
+void DroneCAN::setParameterByIndex(size_t idx, float value)
+{
+    if (idx >= parameters.size())
+    {
+        return;
+    }
+
+    auto &p = parameters[idx];
+
+    // Validate against min/max constraints
+    if (value < p.min_value)
+    {
+        value = p.min_value;
+    }
+    else if (value > p.max_value)
+    {
+        value = p.max_value;
+    }
+
+    // Set value and persist to EEPROM
+    parameters[idx].value = value;
+    EEPROM.put(idx * sizeof(float), value);
+}
+
+/*
+    Set a parameter from storage by name
+    Values get stored as floats and persisted to EEPROM
+    returns -1 if storage failed, 0 if good
+*/
+int DroneCAN::setParameter(const char *name, float value)
+{
+    size_t idx = getParameterIndex(name, strlen(name));
+    if (idx != SIZE_MAX)
+    {
+        setParameterByIndex(idx, value);
+        return 0;
     }
     return -1;
 }
@@ -660,15 +761,6 @@ void DroneCAN::handle_file_read_response(CanardRxTransfer *transfer)
         return;
     }
 
-    // write(fwupdate.fd, pkt.data.data, pkt.data.len);
-    // if (pkt.data.len < 256)
-    // {
-    //     /* firmware updare done */
-    //     close(fwupdate.fd);
-    //     Serial.println("Firmwate update complete\n");
-    //     fwupdate.node_id = 0;
-    //     return;
-    // }
     fwupdate.offset += pkt.data.len;
 
     /* trigger a new read */
@@ -855,7 +947,7 @@ void DroneCANonTransferReceived(DroneCAN &dronecan, CanardInstance *ins, CanardR
 /*
     Bare minimum message signing required for DroneCAN library
 */
-bool DroneCANshoudlAcceptTransfer(const CanardInstance *ins,
+bool DroneCANshouldAcceptTransfer(const CanardInstance *ins,
                                   uint64_t *out_data_type_signature,
                                   uint16_t data_type_id,
                                   CanardTransferType transfer_type,
