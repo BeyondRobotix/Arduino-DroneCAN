@@ -14,7 +14,6 @@ from datetime import datetime
 from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
-from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich import box
 import re
 
@@ -36,7 +35,7 @@ def parse_pytest_output(output: str):
 
     # Parse test counts from summary line
     # Example: "10 passed, 2 failed in 5.23s"
-    summary_pattern = r'(\d+)\s+passed|(\d+)\s+failed|(\d+)\s+skipped|(\d+)\s+error'
+    summary_pattern = r'(\d+)\s+passed|(\d+)\s+failed|(\d+)\s+skipped|(\d+)\s+errors?'
     for match in re.finditer(summary_pattern, output):
         if match.group(1):
             results['passed'] = int(match.group(1))
@@ -56,7 +55,12 @@ def parse_pytest_output(output: str):
     failed_pattern = r'FAILED (test_\w+\.py::\w+::\w+)'
     results['failed_tests'] = re.findall(failed_pattern, output)
 
-    results['total'] = results['passed'] + results['failed'] + results['skipped']
+    # Also parse error test names
+    error_pattern = r'ERROR (test_\w+\.py::\w+::\w+)'
+    error_tests = re.findall(error_pattern, output)
+    results['failed_tests'].extend(error_tests)
+
+    results['total'] = results['passed'] + results['failed'] + results['skipped'] + results['errors']
 
     return results
 
@@ -98,18 +102,18 @@ def display_results(results):
     table.add_column("Count", style="bold white", justify="center")
 
     table.add_row("Total Tests", str(results['total']))
-    table.add_row("✓ Passed", f"[green]{results['passed']}[/green]")
+    table.add_row("[ PASS ] Passed", f"[green]{results['passed']}[/green]")
 
     if results['failed'] > 0:
-        table.add_row("✗ Failed", f"[red]{results['failed']}[/red]")
+        table.add_row("[ FAIL ] Failed", f"[red]{results['failed']}[/red]")
     else:
-        table.add_row("✗ Failed", "0")
+        table.add_row("[ FAIL ] Failed", "0")
 
     if results['skipped'] > 0:
-        table.add_row("⊘ Skipped", f"[yellow]{results['skipped']}[/yellow]")
+        table.add_row("[ SKIP ] Skipped", f"[yellow]{results['skipped']}[/yellow]")
 
     if results['errors'] > 0:
-        table.add_row("⚠ Errors", f"[red]{results['errors']}[/red]")
+        table.add_row("[ERROR ] Errors", f"[red]{results['errors']}[/red]")
 
     table.add_row("Duration", f"{results['duration']:.2f}s")
 
@@ -119,7 +123,7 @@ def display_results(results):
     if results['failed_tests']:
         console.print()
         console.print(Panel(
-            "\n".join(f"  • {test}" for test in results['failed_tests']),
+            "\n".join(f"  - {test}" for test in results['failed_tests']),
             title="[red]Failed Tests[/red]",
             border_style="red"
         ))
@@ -128,12 +132,12 @@ def display_results(results):
     console.print()
     if results['failed'] == 0 and results['errors'] == 0:
         console.print(Panel.fit(
-            "[bold green]✓ ALL TESTS PASSED[/bold green]",
+            "[bold green]ALL TESTS PASSED[/bold green]",
             border_style="green"
         ))
     else:
         console.print(Panel.fit(
-            f"[bold red]✗ {results['failed'] + results['errors']} TEST(S) FAILED[/bold red]",
+            f"[bold red]{results['failed'] + results['errors']} TEST(S) FAILED[/bold red]",
             border_style="red"
         ))
     console.print()
@@ -173,22 +177,14 @@ def run_pytest(args):
 
     # Run pytest
     console.print(f"[dim]Running: {' '.join(cmd)}[/dim]\n")
+    console.print("[cyan]Running tests...[/cyan]\n")
 
-    with Progress(
-        SpinnerColumn(),
-        TextColumn("[progress.description]{task.description}"),
-        console=console
-    ) as progress:
-        task = progress.add_task("[cyan]Running tests...", total=None)
-
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            cwd=Path(__file__).parent
-        )
-
-        progress.update(task, completed=True)
+    result = subprocess.run(
+        cmd,
+        capture_output=True,
+        text=True,
+        cwd=Path(__file__).parent
+    )
 
     return result
 
@@ -203,7 +199,7 @@ def check_hardware_connection():
 
         interface = config['can_interface']['interface']
         console.print(f"[dim]Configured CAN interface: {interface}[/dim]")
-        console.print("[yellow]⚠ Ensure hardware is connected before running tests[/yellow]\n")
+        console.print("[yellow]WARNING: Ensure hardware is connected before running tests[/yellow]\n")
         return True
     except Exception as e:
         console.print(f"[yellow]Warning: Could not verify hardware configuration: {e}[/yellow]\n")
@@ -282,11 +278,11 @@ Examples:
 
     # Always show pytest output if verbose or if tests failed
     if args.verbose or results['failed'] > 0:
-        console.print("\n[dim]─── Pytest Output ───[/dim]")
+        console.print("\n[dim]--- Pytest Output ---[/dim]")
         console.print(result.stdout)
         if result.stderr:
             console.print("[red]" + result.stderr + "[/red]")
-        console.print("[dim]─── End Output ───[/dim]\n")
+        console.print("[dim]--- End Output ---[/dim]\n")
 
     display_results(results)
 

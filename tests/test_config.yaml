@@ -8,12 +8,12 @@ can_interface:
   #   - SLCAN: "slcan:COM3" (Windows)
   #   - SocketCAN: "socketcan:can0" (Linux)
   #   - PCAN: "pcan:PCAN_USBBUS1"
-  interface: "slcan:COM3"
+  interface: "slcan:COM7@115200"
   bitrate: 1000000  # 1 Mbps
 
 # Device Under Test (DUT) Configuration
 device:
-  node_id: 100  # Expected node ID (matches NODEID parameter default)
+  node_id: 60  # Expected node ID (requested via DNA)
   name: "Beyond Robotix Node"
   boot_time: 3.0  # Seconds to wait after reset
 
@@ -38,7 +38,7 @@ parameters:
     - "PARM_2"
 
   default_values:
-    NODEID: 100
+    NODEID: 60
     PARM_1: 0.0
     PARM_2: 0.0
 

@@ -35,21 +35,53 @@ def dronecan_node(test_config):
     can_config = test_config['can_interface']
     test_node_config = test_config['test_node']
 
-    interface_str = f"{can_config['interface']}:{can_config['bitrate']}"
+    interface_str = can_config['interface']
+    bitrate = can_config['bitrate']
+
+    # Extract serial baudrate if specified in interface string (e.g., "slcan:COM7@115200")
+    serial_baudrate = None
+    if '@' in interface_str:
+        interface_str, serial_baudrate = interface_str.rsplit('@', 1)
+        serial_baudrate = int(serial_baudrate)
 
     try:
         print(f"\n[Setup] Connecting to CAN interface: {interface_str}")
-        node = dronecan.make_node(
-            interface_str,
-            node_id=test_node_config['node_id'],
-            bitrate=can_config['bitrate']
-        )
+        if serial_baudrate:
+            print(f"[Setup] Serial baud rate: {serial_baudrate} bps")
+        print(f"[Setup] CAN bitrate: {bitrate} bps")
+
+        kwargs = {
+            'node_id': test_node_config['node_id'],
+            'bitrate': bitrate
+        }
+        if serial_baudrate:
+            kwargs['baudrate'] = serial_baudrate
+
+        node = dronecan.make_node(interface_str, **kwargs)
 
         # Start the node monitor thread
         node.spin()
 
-        # Wait a moment for connection to stabilize
-        time.sleep(0.5)
+        # Start dynamic node ID allocation server
+        print("[Setup] Starting Dynamic Node ID Allocation server...")
+        node_monitor = dronecan.app.node_monitor.NodeMonitor(node)
+
+        # Create a simple node ID allocator
+        def allocate_node_id(node_id, unique_id):
+            print(f"[Setup] DNA: Allocating node ID {node_id}")
+            return node_id
+
+        alloc_server = dronecan.app.dynamic_node_id.CentralizedServer(node, node_monitor, allocate_node_id)
+
+        # Wait for node ID allocation to complete
+        print("[Setup] Waiting for device to get node ID (2 seconds)...")
+        time.sleep(2.0)
+
+        nodes = list(node_monitor.get_all_node_id())
+        if nodes:
+            print(f"[Setup] Found nodes: {nodes}")
+        else:
+            print("[Setup] No nodes found yet (device may still be allocating ID)")
 
         print("[Setup] DroneCAN node connected successfully")
 
