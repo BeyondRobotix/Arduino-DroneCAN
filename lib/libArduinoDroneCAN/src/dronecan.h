@@ -3,6 +3,11 @@
 
 #include <dronecan_msgs.h>
 #include <Arduino.h>
+#include <simple_dronecanmessages.h>
+#include <app.h>
+#include <IWatchdog.h>
+#include <vector>
+
 #ifdef CANL431
     #include <canL431.h>
 #endif
