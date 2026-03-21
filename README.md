@@ -16,6 +16,7 @@ This isn't intended to be used in the same way as AP_Periph, which supports a bu
 - DroneCAN Parameters ✅
 - Firmware update over CAN ✅
 - CANFD ❌ (coming soon)
+- Multiple CAN ports ❌
 
 ## Code Usage
 
