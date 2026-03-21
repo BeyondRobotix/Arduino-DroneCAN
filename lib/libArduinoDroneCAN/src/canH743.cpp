@@ -1,16 +1,24 @@
-#ifdef CANH743
+#ifdef CANH7
 #include "Arduino.h"
 #include "canH743.h"
 
-// This implementation relies on the ACANFD_STM32 library.
-// It includes the board-specific object and settings files you provided.
-// Please ensure the ACANFD_STM32 library is available in your project's include path.
-static const uint32_t FDCAN1_MESSAGE_RAM_WORD_SIZE = 2560;
-static const uint32_t FDCAN2_MESSAGE_RAM_WORD_SIZE = 2560; // FDCAN2 not used
+// --- Message RAM Configuration ---
+// These values MUST be defined as macros before including the ACANFD_STM32.h header.
+// The library's internal headers use these macros to configure the FDCAN peripherals.
+// H743 has 2560 words of Message RAM shared between FDCAN1 and FDCAN2.
+// FDCAN2's start offset = FDCAN1_MESSAGE_RAM_WORD_SIZE, so give FDCAN1 zero
+// to let FDCAN2 use the entire 2560-word region.
+#define FDCAN1_MESSAGE_RAM_WORD_SIZE 0
+#define FDCAN2_MESSAGE_RAM_WORD_SIZE 2560
+
+// The ACANFD_STM32 library requires this main header to be included in one .cpp file
+// to instantiate the CAN objects (fdcan1, fdcan2).
+#include <ACANFD_STM32.h>
 
 // A static pointer to the active CAN driver instance (FDCAN1 or FDCAN2).
 // This allows the C-style API functions to interact with the C++ CAN object.
 static ACANFD_STM32 *gCANDriver = nullptr;
+static uint32_t gBeginFDStatus = 0xFFFF; // stored for debug
 
 // This mask is used to extract the 29-bit extended ID from a canard frame ID.
 #define CAN_EXT_ID_MASK 0x1FFFFFFFU
@@ -26,9 +34,9 @@ static ACANFD_STM32 *gCANDriver = nullptr;
 bool CANInit(BITRATE bitrate, int can_iface_index) {
 
     // Select the FDCAN peripheral instance based on the provided index.
-    if (can_iface_index == 2) {
+    if (can_iface_index == 1) {
         gCANDriver = &fdcan1;
-    } else if (can_iface_index == 1) {
+    } else if (can_iface_index == 2) {
         gCANDriver = &fdcan2;
     } else {
         // If an invalid index is provided, fail initialization.
@@ -46,24 +54,15 @@ bool CANInit(BITRATE bitrate, int can_iface_index) {
         case CAN_1000KBPS: desiredBitrate = 1000 * 1000; break;
     }
 
-    // Configure FDCAN settings. We use the constructor that takes the arbitration bitrate
-    // and a data bitrate factor. Setting the factor to x1 disables CAN-FD's bitrate switching,
-    // ensuring we operate in classic CAN mode, matching the L431 driver.
     ACANFD_STM32_Settings settings(desiredBitrate, DataBitRateFactor::x1);
 
-    settings.mTxPin = PD_1;
-    settings.mRxPin = PH_14;
+    settings.mTxPin = PB_6;
+    settings.mRxPin = PB_5;
 
-    // The ACANFD library's beginFD() method configures and starts the peripheral.
-    // It returns 0 on success.
     const uint32_t status = gCANDriver->beginFD(settings);
-    
-    if (status == 0) {
-        return true; // Initialization successful
-    } else {
-        gCANDriver = nullptr; // Nullify pointer on failure
-        return false; // Initialization failed
-    }
+    gBeginFDStatus = status;
+
+    return (status == 0);
 }
 
 /**
@@ -95,11 +94,7 @@ void CANSend(const CanardCANFrame *tx_msg) {
     message.type = CANFDMessage::CAN_DATA;
 
     // Use the non-blocking send method from the library.
-    uint32_t ret = gCANDriver->tryToSendReturnStatusFD(message);
-    if (ret != 0)
-    {
-        Serial.println(ret);
-    }
+    gCANDriver->tryToSendReturnStatusFD(message);
 }
 
 /**
