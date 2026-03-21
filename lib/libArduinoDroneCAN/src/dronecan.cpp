@@ -39,7 +39,7 @@ void DroneCAN::init(CanardOnTransferReception onTransferReceived,
     // put our user params into memory
     this->set_parameters(param_list);
 
-    // get the parameters in the EEPROM
+    // get the parameters from flash storage
     this->read_parameter_memory();
 
     while (canardGetLocalNodeID(&this->canard) == CANARD_BROADCAST_NODE_ID)
@@ -108,7 +108,7 @@ void DroneCAN::init(const std::vector<parameter> &param_list, const char *name)
     // put our user params into memory
     this->set_parameters(param_list);
 
-    // get the parameters in the EEPROM
+    // get the parameters from flash storage
     this->read_parameter_memory();
 
     while (canardGetLocalNodeID(&this->canard) == CANARD_BROADCAST_NODE_ID)
@@ -368,13 +368,12 @@ void DroneCAN::handle_param_ExecuteOpcode(CanardRxTransfer *transfer)
     if (req.opcode == UAVCAN_PROTOCOL_PARAM_EXECUTEOPCODE_REQUEST_OPCODE_SAVE)
     {
         // Save all the changed parameters to permanent storage
+        std::vector<float> values(parameters.size());
         for (size_t i = 0; i < parameters.size(); i++)
         {
-            EEPROM.put(i * sizeof(float), parameters[i].value);
+            values[i] = parameters[i].value;
         }
-        // Write magic number so read_parameter_memory() knows EEPROM is valid
-        uint16_t magic_addr = parameters.size() * sizeof(float);
-        EEPROM.put(magic_addr, EEPROM_MAGIC);
+        DroneCAN_Storage::save_all(values.data(), values.size());
     }
 
     struct uavcan_protocol_param_ExecuteOpcodeResponse pkt;
@@ -397,26 +396,32 @@ void DroneCAN::handle_param_ExecuteOpcode(CanardRxTransfer *transfer)
 }
 
 /*
-    Read the EEPROM parameter storage and set the current parameter list to the read values
+    Read parameter storage and set the current parameter list to the read values.
+    On first boot (no valid data in flash) the code defaults are written to flash
+    so they persist immediately.
 */
 void DroneCAN::read_parameter_memory()
 {
-    // Check for magic number that indicates EEPROM has been initialized.
-    // Fresh/erased flash reads as 0xFF or 0x00 — skip loading in that case
-    // so the code-defined defaults are preserved on first boot.
-    uint16_t magic_addr = parameters.size() * sizeof(float);
-    uint32_t magic = 0;
-    EEPROM.get(magic_addr, magic);
-    if (magic != EEPROM_MAGIC)
-    {
-        return; // EEPROM not initialized — keep code defaults
-    }
-
-    float p_val = 0.0;
+    // Build a flat array of current values so the storage layer can fill it in.
+    // If storage has no valid data the array (and thus our defaults) stays untouched.
+    std::vector<float> values(parameters.size());
     for (size_t i = 0; i < parameters.size(); i++)
     {
-        EEPROM.get(i * sizeof(float), p_val);
-        parameters[i].value = p_val;
+        values[i] = parameters[i].value;
+    }
+
+    if (DroneCAN_Storage::load(values.data(), values.size()))
+    {
+        for (size_t i = 0; i < parameters.size(); i++)
+        {
+            parameters[i].value = values[i];
+        }
+    }
+    else
+    {
+        // No valid data in flash — save the code defaults so they
+        // survive reboots even if the user never triggers a CAN save.
+        DroneCAN_Storage::save_all(values.data(), values.size());
     }
 }
 
@@ -454,7 +459,7 @@ size_t DroneCAN::getParameterIndex(const char *name, size_t name_len)
 }
 
 /*
-    Helper function to set parameter by index with validation and EEPROM persistence
+    Helper function to set parameter by index with validation and persistence
 */
 void DroneCAN::setParameterByIndex(size_t idx, float value)
 {
@@ -475,17 +480,14 @@ void DroneCAN::setParameterByIndex(size_t idx, float value)
         value = p.max_value;
     }
 
-    // Set value and persist to EEPROM
+    // Set value and persist to storage
     parameters[idx].value = value;
-    EEPROM.put(idx * sizeof(float), value);
-    // Ensure the magic marker is present so read_parameter_memory() trusts the data
-    uint16_t magic_addr = parameters.size() * sizeof(float);
-    EEPROM.put(magic_addr, EEPROM_MAGIC);
+    DroneCAN_Storage::save(idx, value, parameters.size());
 }
 
 /*
     Set a parameter from storage by name
-    Values get stored as floats and persisted to EEPROM
+    Values get stored as floats and persisted to flash
     returns -1 if storage failed, 0 if good
 */
 int DroneCAN::setParameter(const char *name, float value)
