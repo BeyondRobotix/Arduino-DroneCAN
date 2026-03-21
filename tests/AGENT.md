@@ -1,15 +1,16 @@
-# DroneCAN Tests — Agent Notes
+# DroneCAN Tests -- Agent Notes
 
 ## What this does
 
 Two tools live here:
 
-1. **`test_node.py`** — pytest-based hardware-in-the-loop test suite that
+1. **`test_node.py`** -- pytest-based hardware-in-the-loop test suite that
    verifies the DroneCAN node running `src/main.cpp` is broadcasting the
    expected messages (NodeStatus, BatteryInfo) at the correct rates, with
-   valid field ranges, and that parameters are readable over the CAN bus.
+   valid field ranges, and that the DroneCAN library (`lib/libArduinoDroneCAN`)
+   correctly handles parameters, GetNodeInfo, node restart, and DNA.
 
-2. **`test_can_discovery.py`** — standalone discovery script that connects
+2. **`test_can_discovery.py`** -- standalone discovery script that connects
    to a USB CAN adapter, starts a DroneCAN DNA server, and continuously
    prints `NodeStatus` messages from all nodes on the bus.
 
@@ -20,13 +21,6 @@ Two tools live here:
 - **CAN bitrate**: 1 Mbps (`-b 1000000`)
 - **Discovered node**: Node ID **69**, health OK, mode OPERATIONAL
 
-Other ports present on this machine (not used for this script):
-
-| Port | Device | Notes |
-|------|--------|-------|
-| COM19 | ArduPilot SLCAN | ArduPilot's own built-in SLCAN — does **not** respond to SLCAN init, use COM21 instead |
-| COM20 | ArduPilot MAVLink | MAVLink telemetry port |
-| COM5 | Silicon Labs CP210x | Alternate adapter port — unreliable, prefer COM21 |
 
 ## How to run
 
@@ -53,7 +47,7 @@ uv run python test_can_discovery.py -i COM21 -b 1000000 --no-dna
 |------|---------|-------------|
 | `-i` / `--interface` | required | COM port or device path |
 | `-b` / `--bitrate` | 1000000 | CAN bus bitrate in bps |
-| `--baudrate` | None (3Mbps) | Serial port baud rate — only needed for non-USB-CDC adapters |
+| `--baudrate` | None (3Mbps) | Serial port baud rate -- only needed for non-USB-CDC adapters |
 | `--bustype` | slcan | python-can bus type; use `socketcan` on Linux |
 | `--node-id` | 127 | Local node ID claimed by this tool |
 | `--no-dna` | off | Disable DNA allocation server |
@@ -68,47 +62,97 @@ cd tests
 uv run pytest test_node.py -v
 ```
 
-The test suite uses a **session-scoped** `can_node` fixture (see `conftest.py`)
-that opens COM21 once and shares the connection across all 11 tests. Handlers
-are cleaned up after each test via `handle.remove()`.
+The test suite uses two **session-scoped** fixtures (see `conftest.py`):
+
+- **`can_node`** -- opens COM21 once, creates an always-on DNA server
+  (`DNAServer` wrapper), and shares the connection across all 22 tests.
+- **`dna_server`** -- exposes the `DNAServer` wrapper so tests that change
+  NODEID can call `dna_server.clear_allocations()` before restarting the
+  node.
+
+Handlers are cleaned up after each test via `handle.remove()`.
 
 ### Test groups
 
 **NodeStatus (smoke tests)**
-- `test_node_present` — node 69 is on the bus
-- `test_node_healthy_and_operational` — health OK, mode OPERATIONAL
-- `test_node_status_rate` — broadcasts at ~1 Hz
+- `test_node_present` -- node 69 is on the bus
+- `test_node_healthy_and_operational` -- health OK, mode OPERATIONAL
+- `test_node_status_rate` -- broadcasts at ~1 Hz
 
 **BatteryInfo (main payload from `src/main.cpp`)**
-- `test_battery_info_received` — BatteryInfo is broadcast
-- `test_battery_info_rate` — rate is ~10 Hz (100 ms interval)
-- `test_battery_info_voltage_in_range` — raw ADC 0-4095
-- `test_battery_info_current_in_range` — raw ADC 0-4095
-- `test_battery_info_temperature_plausible` — MCU die temp -40..125 °C
+- `test_battery_info_received` -- BatteryInfo is broadcast
+- `test_battery_info_rate` -- rate is ~10 Hz (100 ms interval)
+- `test_battery_info_voltage_in_range` -- raw ADC 0-4095
+- `test_battery_info_current_in_range` -- raw ADC 0-4095
+- `test_battery_info_temperature_plausible` -- MCU die temp -40..125 C
 
-**Parameters (read via `uavcan.protocol.param.GetSet`)**
-- `test_param_nodeid` — NODEID = 69 (matches bus ID)
-- `test_param_parm1` — PARM_1 = 50.0 (set in `setup()`)
-- `test_param_parm2` — PARM_2 within configured range 0-100
+**GetNodeInfo (identity and metadata)**
+- `test_get_node_info_name` -- name = "Beyond Robotix Node"
+- `test_get_node_info_unique_id` -- 16-byte hardware UID is non-zero
+- `test_get_node_info_uptime` -- uptime > 0
+
+**Parameters -- read (via `uavcan.protocol.param.GetSet`)**
+- `test_param_nodeid` -- NODEID = 69 (matches bus ID)
+- `test_param_parm1` -- PARM_1 = 50.0 (set in `setup()`)
+- `test_param_parm2` -- PARM_2 within configured range 0-100
+
+**Parameters -- set, clamping, edge cases**
+- `test_param_set_readback` -- write PARM_2=42.0 via CAN, read back, restore
+- `test_param_clamping_high` -- value > max clamps to 100
+- `test_param_clamping_low` -- value < min clamps to 0
+- `test_param_by_index` -- index-based lookup returns correct name
+- `test_param_nonexistent_name_falls_back_to_index` -- bad name falls back
+  to index field (firmware behaviour, see `dronecan.cpp:270`)
+- `test_param_out_of_range_index` -- index 999 + bad name returns empty
+
+**RestartNode and persistence (run last -- reboots the node)**
+- `test_restart_node` -- reboot via RestartNode, verify uptime resets and
+  PARM_1/PARM_2 survive via EEPROM
+- `test_change_node_id_and_restore` -- set NODEID to 70, restart, verify
+  node appears at bus ID 70, set back to 69, restart, verify restored
 
 ### Key implementation details
 
 - `_collect()` spins the node and records `(timestamp, event)` tuples; the
   handler is registered then removed in a `try/finally` block.
-- `_get_param()` sends a `param.GetSet` service request and spins until the
-  response callback fires or the timeout expires.
-- Rate tests use a ±40% tolerance (`RATE_TOLERANCE = 0.40`) because the
+- `_get_param()` / `_set_param()` send `param.GetSet` service requests and
+  spin until the response callback fires or the timeout expires. Both accept
+  an optional `target` node ID for talking to the node after an ID change.
+- `_get_node_info()` sends a `GetNodeInfo` request and returns the response.
+- `_send_restart()` sends a `RestartNode` request with the magic number.
+- `_wait_for_node()` spins until a `NodeStatus` arrives from a given node ID.
+- Rate tests use a +/-40% tolerance (`RATE_TOLERANCE = 0.40`) because the
   node's `millis()` loop and Windows timer resolution introduce jitter.
+
+### DNA server and NODEID changes
+
+The `conftest.py` `DNAServer` class wraps `CentralizedServer` + `NodeMonitor`.
+The `CentralizedServer` caches `unique_id -> node_id` mappings in a SQLite
+in-memory database. When a test changes NODEID and restarts the node, the
+cached mapping must be cleared first, otherwise the server returns the old ID
+regardless of the node's preferred ID.
+
+```python
+dna_server.clear_allocations()   # wipe the SQLite allocation table
+_send_restart(can_node)          # reboot the node
+time.sleep(1)                    # let the MCU reset
+_wait_for_node(can_node, new_id) # wait for DNA to complete
+```
+
+The `clear_allocations()` method directly deletes all rows from the
+`allocation` table without tearing down the server or monitor, avoiding the
+stale-entry problem where `NodeMonitor.are_all_nodes_discovered()` blocks
+DNA allocations for nodes it saw before the restart.
 
 ## Dependencies
 
 ```
-pydronecan   — DroneCAN protocol library (wraps the dronecan package)
-pyserial     — serial port access
-python-can   — python-can, used as the in-process SLCAN driver on Windows
-pytest       — test runner for test_node.py
-ruff         — linter (dev)
-ty           — type checker (dev)
+pydronecan   -- DroneCAN protocol library (wraps the dronecan package)
+pyserial     -- serial port access
+python-can   -- python-can, used as the in-process SLCAN driver on Windows
+pytest       -- test runner for test_node.py
+ruff         -- linter (dev)
+ty           -- type checker (dev)
 ```
 
 Install:
@@ -129,7 +173,7 @@ uv run ty check test_can_discovery.py
 ### 1. Original script was entirely broken
 
 The original `test_can_discovery.py` imported from `pydronecan.dronecan` and
-`pydronecan.dna` — neither of which exist. The `pydronecan` package installs
+`pydronecan.dna` -- neither of which exist. The `pydronecan` package installs
 itself as the `dronecan` top-level package, not as a `pydronecan` namespace.
 It also used `can.interface.Bus` directly (python-can API), and was written as
 an `async` loop which is not how dronecan works (it is synchronous/event-driven).
@@ -151,8 +195,6 @@ fails with:
 ```
 PermissionError(13, 'A device attached to the system is not functioning.', None, 31)
 ```
-
-This affects COM5, COM19, COM21 — all USB CDC / CP210x ports tested.
 
 **Fix**: For COM ports on Windows, bypass the dronecan SLCAN subprocess and use
 `dronecan.driver.python_can.PythonCAN` directly, which wraps python-can's
@@ -192,6 +234,20 @@ which is not a valid ty config key and caused ty to fail entirely.
 
 **Fix**: Changed to `environment.python = ".venv"`.
 
+### 6. DNA server caches stale node ID allocations
+
+The `CentralizedServer` stores `unique_id -> node_id` mappings in an in-memory
+SQLite database. When a test changes NODEID and restarts the node, the server
+returns the *old* cached ID, ignoring the node's new preferred ID.
+
+**Fix**: Added `DNAServer.clear_allocations()` in `conftest.py` which deletes
+all rows from the allocation table without tearing down the server. Tests that
+change NODEID call this before sending `RestartNode`.
+
+Note: an earlier approach that tore down and recreated the entire server failed
+because `NodeMonitor.are_all_nodes_discovered()` returned `False` for stale
+entries, blocking all DNA allocations.
+
 ## dronecan API quick reference
 
 ```python
@@ -218,6 +274,21 @@ def on_status(event):
     print(event.transfer.source_node_id, event.message.health)
 
 node.add_handler(uavcan.protocol.NodeStatus, on_status)
+
+# Service request (param read)
+def on_param(event):
+    if event:
+        print(event.response.value.real_value)
+
+req = uavcan.protocol.param.GetSet.Request()
+req.name = "PARM_1"
+node.request(req, target_node_id=69, callback=on_param)
+
+# Service request (param write)
+req = uavcan.protocol.param.GetSet.Request()
+req.name = "PARM_2"
+req.value.real_value = 42.0
+node.request(req, target_node_id=69, callback=on_param)
 
 # Spin (blocking for up to 1 s, then returns)
 while True:

@@ -55,7 +55,7 @@ def _collect(can_node, msg_type, source_node_id: int, timeout: float, count: int
     return received
 
 
-def _get_param(can_node, name: str, timeout: float = 3.0):
+def _get_param(can_node, name: str, target: int = TARGET_NODE_ID, timeout: float = 3.0):
     """
     Send a uavcan.protocol.param.GetSet request by name and return the
     response object. Returns None if the node does not respond within
@@ -71,7 +71,7 @@ def _get_param(can_node, name: str, timeout: float = 3.0):
 
     req = uavcan.protocol.param.GetSet.Request()
     req.name = name
-    can_node.request(req, TARGET_NODE_ID, on_response, timeout=timeout)
+    can_node.request(req, target, on_response, timeout=timeout)
 
     # Spin until the dronecan timeout fires (plus a small buffer).
     deadline = time.monotonic() + timeout + 0.5
@@ -81,7 +81,9 @@ def _get_param(can_node, name: str, timeout: float = 3.0):
     return result[0]
 
 
-def _set_param(can_node, name: str, value, timeout: float = 3.0):
+def _set_param(
+    can_node, name: str, value, target: int = TARGET_NODE_ID, timeout: float = 3.0,
+):
     """
     Send a uavcan.protocol.param.GetSet request that sets a new value.
     Returns the response (which contains the actual stored value).
@@ -104,7 +106,7 @@ def _set_param(can_node, name: str, value, timeout: float = 3.0):
     else:
         req.value.real_value = float(value)
 
-    can_node.request(req, TARGET_NODE_ID, on_response, timeout=timeout)
+    can_node.request(req, target, on_response, timeout=timeout)
     deadline = time.monotonic() + timeout + 0.5
     while not responded[0] and time.monotonic() < deadline:
         can_node.spin(timeout=0.1)
@@ -131,7 +133,9 @@ def _get_node_info(can_node, timeout: float = 3.0):
     return result[0]
 
 
-def _send_restart(can_node, timeout: float = 3.0):
+def _send_restart(
+    can_node, target: int = TARGET_NODE_ID, timeout: float = 3.0,
+):
     """Send a RestartNode request. Returns the response (or None)."""
     result = [None]
     responded = [False]
@@ -143,12 +147,34 @@ def _send_restart(can_node, timeout: float = 3.0):
 
     req = uavcan.protocol.RestartNode.Request()
     req.magic_number = 0xACCE551B1E
-    can_node.request(req, TARGET_NODE_ID, on_response, timeout=timeout)
+    can_node.request(req, target, on_response, timeout=timeout)
     deadline = time.monotonic() + timeout + 0.5
     while not responded[0] and time.monotonic() < deadline:
         can_node.spin(timeout=0.1)
 
     return result[0]
+
+
+def _wait_for_node(can_node, node_id: int, timeout: float = 15.0):
+    """Spin until a NodeStatus arrives from `node_id`. Returns True
+    if the node appeared, False on timeout."""
+    seen = [False]
+
+    def on_status(event) -> None:
+        if event.transfer.source_node_id == node_id:
+            seen[0] = True
+
+    handle = can_node.add_handler(
+        uavcan.protocol.NodeStatus, on_status,
+    )
+    deadline = time.monotonic() + timeout
+    try:
+        while not seen[0] and time.monotonic() < deadline:
+            can_node.spin(timeout=0.5)
+    finally:
+        handle.remove()
+
+    return seen[0]
 
 
 def _get_param_by_index(can_node, index: int, timeout: float = 3.0):
@@ -465,7 +491,7 @@ def test_param_out_of_range_index(can_node):
 # This test MUST run last because it reboots the node.
 # ---------------------------------------------------------------------------
 
-def test_restart_node(can_node):
+def test_restart_node(can_node, dna_server):
     """RestartNode must reboot the node; it must come back via DNA
     with its parameters intact and uptime reset to near zero."""
     # 1. Record pre-restart uptime
@@ -523,4 +549,59 @@ def test_restart_node(can_node):
     assert p2 is not None, "No PARM_2 response after restart"
     assert abs(float(p2.value.real_value) - 77.0) < 0.01, (
         f"PARM_2 after restart = {float(p2.value.real_value)}, expected 77.0"
+    )
+
+
+def test_change_node_id_and_restore(can_node, dna_server):
+    """Changing NODEID must make the node appear at the new bus
+    address after restart, then changing it back must restore it."""
+    temp_id = 70
+
+    # 1. Change NODEID from 69 → 70
+    resp = _set_param(can_node, "NODEID", temp_id)
+    assert resp is not None, "No response to NODEID set"
+    assert int(resp.value.integer_value) == temp_id, (
+        f"NODEID set response = {int(resp.value.integer_value)}, "
+        f"expected {temp_id}"
+    )
+
+    # 2. Clear the DNA allocation table, then restart.
+    #    Without clearing, the server returns the cached ID.
+    dna_server.clear_allocations()
+    _send_restart(can_node)
+    time.sleep(1)
+    assert _wait_for_node(can_node, temp_id), (
+        f"Node did not reappear at ID {temp_id} after restart"
+    )
+
+    # 4. Verify NODEID reads back as 70 on the new address
+    check = _get_param(can_node, "NODEID", target=temp_id)
+    assert check is not None, f"No param response from node {temp_id}"
+    assert int(check.value.integer_value) == temp_id, (
+        f"NODEID on new node = {int(check.value.integer_value)}"
+    )
+
+    # 5. Change NODEID back to 69 and clear the DNA table again
+    resp2 = _set_param(
+        can_node, "NODEID", TARGET_NODE_ID, target=temp_id,
+    )
+    assert resp2 is not None, "No response to NODEID restore"
+    assert int(resp2.value.integer_value) == TARGET_NODE_ID
+
+    # 6. Clear allocations and restart — node should come
+    #    back on ID 69
+    dna_server.clear_allocations()
+    _send_restart(can_node, target=temp_id)
+    time.sleep(1)
+    assert _wait_for_node(can_node, TARGET_NODE_ID), (
+        f"Node did not reappear at ID {TARGET_NODE_ID} after "
+        f"restoring NODEID"
+    )
+
+    # 7. Final verification: NODEID is 69 and the node is healthy
+    final = _get_param(can_node, "NODEID")
+    assert final is not None, "No param response after restore"
+    assert int(final.value.integer_value) == TARGET_NODE_ID, (
+        f"NODEID after restore = {int(final.value.integer_value)}, "
+        f"expected {TARGET_NODE_ID}"
     )
