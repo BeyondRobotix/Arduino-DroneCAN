@@ -1,17 +1,24 @@
-# CAN Network Discovery — Agent Notes
+# DroneCAN Tests — Agent Notes
 
 ## What this does
 
-`test_can_discovery.py` connects to a USB CAN adapter, starts a DroneCAN DNA
-(Dynamic Node ID Allocation) server, and continuously prints `NodeStatus`
-messages broadcast by nodes on the CAN bus — primarily an ArduPilot autopilot.
+Two tools live here:
+
+1. **`test_node.py`** — pytest-based hardware-in-the-loop test suite that
+   verifies the DroneCAN node running `src/main.cpp` is broadcasting the
+   expected messages (NodeStatus, BatteryInfo) at the correct rates, with
+   valid field ranges, and that parameters are readable over the CAN bus.
+
+2. **`test_can_discovery.py`** — standalone discovery script that connects
+   to a USB CAN adapter, starts a DroneCAN DNA server, and continuously
+   prints `NodeStatus` messages from all nodes on the bus.
 
 ## Hardware setup (confirmed working)
 
 - **CAN adapter**: USB Serial Device on **COM21** (silicon USB-CDC adapter)
 - **Autopilot**: ArduPilot (Cube Orange+) connected to the adapter via CAN
 - **CAN bitrate**: 1 Mbps (`-b 1000000`)
-- **Discovered node**: Node ID 10, health OK, mode OPERATIONAL
+- **Discovered node**: Node ID **69**, health OK, mode OPERATIONAL
 
 Other ports present on this machine (not used for this script):
 
@@ -52,12 +59,54 @@ uv run python test_can_discovery.py -i COM21 -b 1000000 --no-dna
 | `--no-dna` | off | Disable DNA allocation server |
 | `-t` / `--timeout` | None | Stop after N seconds; omit to run until Ctrl-C |
 
+## Test suite (`test_node.py`)
+
+Run all tests:
+
+```bash
+cd tests
+uv run pytest test_node.py -v
+```
+
+The test suite uses a **session-scoped** `can_node` fixture (see `conftest.py`)
+that opens COM21 once and shares the connection across all 11 tests. Handlers
+are cleaned up after each test via `handle.remove()`.
+
+### Test groups
+
+**NodeStatus (smoke tests)**
+- `test_node_present` — node 69 is on the bus
+- `test_node_healthy_and_operational` — health OK, mode OPERATIONAL
+- `test_node_status_rate` — broadcasts at ~1 Hz
+
+**BatteryInfo (main payload from `src/main.cpp`)**
+- `test_battery_info_received` — BatteryInfo is broadcast
+- `test_battery_info_rate` — rate is ~10 Hz (100 ms interval)
+- `test_battery_info_voltage_in_range` — raw ADC 0-4095
+- `test_battery_info_current_in_range` — raw ADC 0-4095
+- `test_battery_info_temperature_plausible` — MCU die temp -40..125 °C
+
+**Parameters (read via `uavcan.protocol.param.GetSet`)**
+- `test_param_nodeid` — NODEID = 69 (matches bus ID)
+- `test_param_parm1` — PARM_1 = 50.0 (set in `setup()`)
+- `test_param_parm2` — PARM_2 within configured range 0-100
+
+### Key implementation details
+
+- `_collect()` spins the node and records `(timestamp, event)` tuples; the
+  handler is registered then removed in a `try/finally` block.
+- `_get_param()` sends a `param.GetSet` service request and spins until the
+  response callback fires or the timeout expires.
+- Rate tests use a ±40% tolerance (`RATE_TOLERANCE = 0.40`) because the
+  node's `millis()` loop and Windows timer resolution introduce jitter.
+
 ## Dependencies
 
 ```
 pydronecan   — DroneCAN protocol library (wraps the dronecan package)
 pyserial     — serial port access
 python-can   — python-can, used as the in-process SLCAN driver on Windows
+pytest       — test runner for test_node.py
 ruff         — linter (dev)
 ty           — type checker (dev)
 ```

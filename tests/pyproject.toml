@@ -8,6 +8,7 @@ dependencies = [
     "pydronecan",
     "pyserial>=3.5",
     "python-can>=4.6.1",
+    "pytest>=8.0",
 ]
 
 [project.scripts]
@@ -18,6 +19,12 @@ target-version = "py313"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "W", "N", "UP"]
+
+[tool.pytest.ini_options]
+filterwarnings = [
+    # dronecan's PythonCAN passes 'bustype' instead of 'interface' — upstream issue
+    "ignore:The 'bustype' argument is deprecated:DeprecationWarning",
+]
 
 [tool.ty]
 environment.python = ".venv"
