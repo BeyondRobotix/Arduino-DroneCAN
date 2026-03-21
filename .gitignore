@@ -5,3 +5,5 @@
 .vscode/ipch
 .vscode/extensions.json
 .claude/settings.local.json
+*.pyc
+__pycache__
