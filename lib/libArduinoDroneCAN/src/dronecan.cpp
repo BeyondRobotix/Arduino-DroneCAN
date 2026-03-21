@@ -372,6 +372,9 @@ void DroneCAN::handle_param_ExecuteOpcode(CanardRxTransfer *transfer)
         {
             EEPROM.put(i * sizeof(float), parameters[i].value);
         }
+        // Write magic number so read_parameter_memory() knows EEPROM is valid
+        uint16_t magic_addr = parameters.size() * sizeof(float);
+        EEPROM.put(magic_addr, EEPROM_MAGIC);
     }
 
     struct uavcan_protocol_param_ExecuteOpcodeResponse pkt;
@@ -398,8 +401,18 @@ void DroneCAN::handle_param_ExecuteOpcode(CanardRxTransfer *transfer)
 */
 void DroneCAN::read_parameter_memory()
 {
-    float p_val = 0.0;
+    // Check for magic number that indicates EEPROM has been initialized.
+    // Fresh/erased flash reads as 0xFF or 0x00 — skip loading in that case
+    // so the code-defined defaults are preserved on first boot.
+    uint16_t magic_addr = parameters.size() * sizeof(float);
+    uint32_t magic = 0;
+    EEPROM.get(magic_addr, magic);
+    if (magic != EEPROM_MAGIC)
+    {
+        return; // EEPROM not initialized — keep code defaults
+    }
 
+    float p_val = 0.0;
     for (size_t i = 0; i < parameters.size(); i++)
     {
         EEPROM.get(i * sizeof(float), p_val);
@@ -465,6 +478,9 @@ void DroneCAN::setParameterByIndex(size_t idx, float value)
     // Set value and persist to EEPROM
     parameters[idx].value = value;
     EEPROM.put(idx * sizeof(float), value);
+    // Ensure the magic marker is present so read_parameter_memory() trusts the data
+    uint16_t magic_addr = parameters.size() * sizeof(float);
+    EEPROM.put(magic_addr, EEPROM_MAGIC);
 }
 
 /*
