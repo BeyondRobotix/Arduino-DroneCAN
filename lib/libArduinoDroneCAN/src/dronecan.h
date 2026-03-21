@@ -12,7 +12,7 @@
 #ifdef ARDUINO_NUCLEO_H723ZG
     #include <canH723.h>
 #endif
-#include <EEPROM.h>
+#include <storage.h>
 #include <vector>
 #include <IWatchdog.h>
 
@@ -33,8 +33,6 @@ private:
     uint32_t looptime;
     bool led_state = false;
     uint64_t uptime = 0;
-    static constexpr uint16_t PARAM_EEPROM_BASE = 0x0000; // EEPROM base address
-    static constexpr uint32_t EEPROM_MAGIC = 0x4443414E;  // "DCAN" — written after first save
     std::vector<size_t> sorted_indices;                   // built on first use
     int node_id = 0;
     char node_name[80];
@@ -80,7 +78,7 @@ private:
     void processRx();
     static uint64_t micros64();
 
-    // Helper function to set parameter by index with validation and EEPROM persistence
+    // Helper function to set parameter by index with validation and persistence
     void setParameterByIndex(size_t idx, float value);
 
     // Helper function to find parameter index by name
