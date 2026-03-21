@@ -1,4 +1,4 @@
-#ifdef CANH743
+#ifdef CANH7
 #ifndef CAN_DRIVER_H7_
 #define CAN_DRIVER_H7_
 

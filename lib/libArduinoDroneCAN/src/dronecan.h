@@ -7,7 +7,7 @@
     #include <canL431.h>
 #endif
 #ifdef CANH7
-    #include <canH7.h>
+    #include <canH743.h>
 #endif
 #ifdef ARDUINO_NUCLEO_H723ZG
     #include <canH723.h>
