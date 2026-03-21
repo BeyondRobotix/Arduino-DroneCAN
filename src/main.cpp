@@ -8,7 +8,7 @@
 
 // set up your parameters here with default values. NODEID should be kept
 std::vector<DroneCAN::parameter> custom_parameters = {
-    { "NODEID", DroneCAN::INT,   100,  0, 127 },
+    { "NODEID", DroneCAN::INT,   100,  1, 127 },
     { "PARM_1", DroneCAN::REAL,  0.0f, 0.0f, 100.0f },
     { "PARM_2", DroneCAN::REAL,  0.0f, 0.0f, 100.0f },
 };
