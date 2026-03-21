@@ -12,7 +12,7 @@
 #ifdef ARDUINO_NUCLEO_H723ZG
     #include <canH723.h>
 #endif
-// #include <EEPROM.h>
+#include <storage.h>
 #include <vector>
 #include <IWatchdog.h>
 
