@@ -49,6 +49,50 @@ uv run pytest test_node.py -v
 
 Tests 21-22 reboot the node and must run last.
 
+## Build, upload, and test pipeline
+
+**`build_upload_test.py`** automates the full development loop: build the
+firmware with PlatformIO, upload it via ST-Link, wait for the node to boot,
+then run the test suite. Each stage streams its output and reports clear
+pass/fail status.
+
+```bash
+cd tests
+
+# Full pipeline (default: Micro-Node-Bootloader, COM21, 1 Mbps)
+uv run python build_upload_test.py
+
+# Different board environment
+uv run python build_upload_test.py -e Micro-Node-No-Bootloader
+
+# Different CAN adapter / bitrate
+uv run python build_upload_test.py -i COM5 -b 500000
+
+# Build only (verify it compiles)
+uv run python build_upload_test.py --build-only
+
+# Skip upload (node already flashed)
+uv run python build_upload_test.py --no-upload
+
+# Skip tests (just build and upload)
+uv run python build_upload_test.py --no-test
+
+# Forward extra flags to pytest (after --)
+uv run python build_upload_test.py -- -k test_node_present -vv
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `-e` / `--env` | `Micro-Node-Bootloader` | PlatformIO environment to build/upload |
+| `-i` / `--interface` | `COM21` | CAN adapter COM port or device path |
+| `-b` / `--bitrate` | `1000000` | CAN bus bitrate in bps |
+| `--boot-wait` | `4` | Seconds to wait after upload for the node to boot |
+| `--no-upload` | | Skip the upload step |
+| `--no-test` | | Skip the test step |
+| `--build-only` | | Build only — no upload, no test |
+
+Exit codes: `0` = all passed, `1` = build failed, `2` = upload failed, `3` = tests failed.
+
 ## Other scripts
 
 - **`test_can_discovery.py`** -- standalone discovery tool that lists all

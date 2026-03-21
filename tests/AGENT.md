@@ -2,15 +2,20 @@
 
 ## What this does
 
-Two tools live here:
+Three tools live here:
 
-1. **`test_node.py`** -- pytest-based hardware-in-the-loop test suite that
+1. **`build_upload_test.py`** -- end-to-end pipeline that builds the firmware
+   with PlatformIO, uploads it to the node via ST-Link, waits for boot, then
+   runs the pytest test suite.  This is the main entry point for the
+   edit → build → flash → verify development loop.
+
+2. **`test_node.py`** -- pytest-based hardware-in-the-loop test suite that
    verifies the DroneCAN node running `src/main.cpp` is broadcasting the
    expected messages (NodeStatus, BatteryInfo) at the correct rates, with
    valid field ranges, and that the DroneCAN library (`lib/libArduinoDroneCAN`)
    correctly handles parameters, GetNodeInfo, node restart, and DNA.
 
-2. **`test_can_discovery.py`** -- standalone discovery script that connects
+3. **`test_can_discovery.py`** -- standalone discovery script that connects
    to a USB CAN adapter, starts a DroneCAN DNA server, and continuously
    prints `NodeStatus` messages from all nodes on the bus.
 
@@ -23,6 +28,55 @@ Two tools live here:
 
 
 ## How to run
+
+### Full pipeline (build → upload → test)
+
+```bash
+cd tests
+uv run python build_upload_test.py
+```
+
+With options:
+
+```bash
+# Different PlatformIO environment
+uv run python build_upload_test.py -e Micro-Node-No-Bootloader
+
+# Different CAN adapter / bitrate
+uv run python build_upload_test.py -i COM5 -b 500000
+
+# Build only (check it compiles)
+uv run python build_upload_test.py --build-only
+
+# Skip upload (node already flashed)
+uv run python build_upload_test.py --no-upload
+
+# Skip tests (just build and flash)
+uv run python build_upload_test.py --no-test
+
+# Forward extra flags to pytest
+uv run python build_upload_test.py -- -k test_node_present -vv
+```
+
+### Pipeline CLI reference
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `-e` / `--env` | `Micro-Node-Bootloader` | PlatformIO environment to build/upload |
+| `-i` / `--interface` | `COM21` | CAN adapter COM port or device path |
+| `-b` / `--bitrate` | `1000000` | CAN bus bitrate in bps |
+| `--boot-wait` | `4` | Seconds to wait after upload for node boot |
+| `--no-upload` | off | Skip the upload step |
+| `--no-test` | off | Skip the test step |
+| `--build-only` | off | Build only -- no upload, no test |
+
+Exit codes: `0` all passed, `1` build failed, `2` upload failed, `3` tests failed.
+
+The `-i` and `-b` flags are passed through to the test suite via the
+`DRONECAN_INTERFACE` and `DRONECAN_BITRATE` environment variables (read by
+`conftest.py`, falling back to COM21 / 1 Mbps).
+
+### Discovery script
 
 ```bash
 cd tests
@@ -41,7 +95,7 @@ Disable the DNA server (passive listen only):
 uv run python test_can_discovery.py -i COM21 -b 1000000 --no-dna
 ```
 
-## CLI reference
+### Discovery CLI reference
 
 | Flag | Default | Description |
 |------|---------|-------------|

@@ -4,6 +4,7 @@ Pytest configuration and fixtures for DroneCAN hardware-in-the-loop tests.
 Requires the CAN adapter to be connected on COM21 at 1 Mbps.
 """
 
+import os
 import time
 
 import dronecan
@@ -12,8 +13,8 @@ import dronecan.app.node_monitor as nm
 import pytest
 from dronecan.driver.python_can import PythonCAN
 
-INTERFACE = "COM21"
-BITRATE = 1_000_000
+INTERFACE = os.environ.get("DRONECAN_INTERFACE", "COM21")
+BITRATE = int(os.environ.get("DRONECAN_BITRATE", "1000000"))
 LOCAL_NODE_ID = 126  # avoids colliding with the target node (69) or ArduPilot (127)
 
 
