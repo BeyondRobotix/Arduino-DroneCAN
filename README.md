@@ -15,6 +15,7 @@ This isn't intended to be used in the same way as AP_Periph, which supports a bu
 - Standard DroneCAN under the hood (allocation, node info) ✅
 - DroneCAN Parameters ✅
 - Firmware update over CAN ✅
+- CANFD ❌ (coming soon)
 
 ## Code Usage
 
@@ -41,6 +42,9 @@ See [Beyond Robotix Can Node](https://www.beyondrobotix.com/products/micro-can-n
 <img src="./assets/BRlogo.png" width="50%">
 
 <img src="./assets/node-and-carrier.png" width="80%">
+
+- More hardware options coming soon! 2 H7 based. Contact admin@beyondrobotix.com for early info.
+
 
 We've got some handy docs for the node hardware and some more software explaination and examples here [CAN node gitbook](https://beyond-robotix.gitbook.io/docs/can-node-system)
 
