@@ -1,10 +1,5 @@
 #include <Arduino.h>
 #include <dronecan.h>
-#include <IWatchdog.h>
-#include <app.h>
-#include <vector>
-#include <simple_dronecanmessages.h>
-
 #include "Adafruit_MCP9600.h"
 #include "Wire.h"
 
@@ -29,32 +24,13 @@ MCP9600 specific setup
 #define I2C_ADDRESS (0x66)
 Adafruit_MCP9600 mcp;
 
-static void onTransferReceived(CanardInstance *ins, CanardRxTransfer *transfer)
-{
-    DroneCANonTransferReceived(dronecan, ins, transfer);
-}
-
-static bool shouldAcceptTransfer(const CanardInstance *ins,
-                                 uint64_t *out_data_type_signature,
-                                 uint16_t data_type_id,
-                                 CanardTransferType transfer_type,
-                                 uint8_t source_node_id)
-
-{
-    return false || DroneCANshouldAcceptTransfer(ins, out_data_type_signature, data_type_id, transfer_type, source_node_id);
-}
-
 void setup()
 {
     // the following block of code should always run first. Adjust it at your own peril!
     app_setup();
     IWatchdog.begin(2000000);
     Serial.begin(115200);
-    dronecan.version_major = 1;
-    dronecan.version_minor = 0;
     dronecan.init(
-        onTransferReceived,
-        shouldAcceptTransfer,
         custom_parameters,
         "BR-Node-Temperature");
     // end of important starting code
