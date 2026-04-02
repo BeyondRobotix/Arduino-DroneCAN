@@ -22,15 +22,6 @@ void DroneCAN::init(CanardOnTransferReception onTransferReceived,
                shouldAcceptTransfer,
                NULL);
 
-    if (this->node_id > 0)
-    {
-        canardSetLocalNodeID(&this->canard, node_id);
-    }
-    else
-    {
-        Serial.println("Waiting for DNA node allocation");
-    }
-
     // initialise the internal LED
     pinMode(19, OUTPUT);
 
@@ -42,12 +33,17 @@ void DroneCAN::init(CanardOnTransferReception onTransferReceived,
     // get the parameters from flash storage
     this->read_parameter_memory();
 
-    while (canardGetLocalNodeID(&this->canard) == CANARD_BROADCAST_NODE_ID)
+    // use the stored NODEID parameter to set the local node ID directly
+    uint8_t preferred = this->get_preferred_node_id();
+    if (preferred > 0 && preferred <= 127)
     {
-        this->cycle();
-        IWatchdog.reload();
-        digitalWrite(19, this->led_state);
-        this->led_state = !this->led_state;
+        canardSetLocalNodeID(&this->canard, preferred);
+        Serial.print("Using stored node ID: ");
+        Serial.println(preferred);
+    }
+    else
+    {
+        Serial.println("No valid node ID, DNA will run during cycle()");
     }
 }
 
@@ -91,15 +87,6 @@ void DroneCAN::init(const std::vector<parameter> &param_list, const char *name)
                DroneCAN_should_accept_adapter,
                this);
 
-    if (this->node_id > 0)
-    {
-        canardSetLocalNodeID(&this->canard, node_id);
-    }
-    else
-    {
-        Serial.println("Waiting for DNA node allocation");
-    }
-
     // initialise the internal LED
     pinMode(19, OUTPUT);
 
@@ -111,12 +98,17 @@ void DroneCAN::init(const std::vector<parameter> &param_list, const char *name)
     // get the parameters from flash storage
     this->read_parameter_memory();
 
-    while (canardGetLocalNodeID(&this->canard) == CANARD_BROADCAST_NODE_ID)
+    // use the stored NODEID parameter to set the local node ID directly
+    uint8_t preferred = this->get_preferred_node_id();
+    if (preferred > 0 && preferred <= 127)
     {
-        this->cycle();
-        IWatchdog.reload();
-        digitalWrite(19, this->led_state);
-        this->led_state = !this->led_state;
+        canardSetLocalNodeID(&this->canard, preferred);
+        Serial.print("Using stored node ID: ");
+        Serial.println(preferred);
+    }
+    else
+    {
+        Serial.println("No valid node ID, DNA will run during cycle()");
     }
 }
 
@@ -155,7 +147,6 @@ void DroneCAN::cycle()
 
     this->processRx();
     this->processTx();
-    this->request_DNA();
 }
 
 /*
@@ -840,6 +831,11 @@ void DroneCAN::process1HzTasks(uint64_t timestamp_usec)
       Transmit the node status message
     */
     send_NodeStatus();
+
+    /*
+      Request DNA node ID allocation if we don't have one yet
+    */
+    request_DNA();
 }
 
 /*
