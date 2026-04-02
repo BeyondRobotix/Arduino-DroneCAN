@@ -15,6 +15,8 @@
 #include <storage.h>
 #include <vector>
 #include <IWatchdog.h>
+#include <app.h>
+#include <simple_dronecanmessages.h>
 
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 #define C_TO_KELVIN(temp) (temp + 273.15f)
