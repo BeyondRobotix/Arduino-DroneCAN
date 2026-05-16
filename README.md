@@ -34,6 +34,16 @@ See [Beyond Robotix Gitbooks ArduinoCAN documentation](https://beyond-robotix.gi
 
 We have a big tutorial here which runs through integrating a sensor: [Arduino DroneCAN tutorial](https://beyond-robotix.gitbook.io/docs/can-node-system/arduino-dronecan/thermocouple-tutorial)
 
+## PlatformIO Setup
+
+Board definitions, variants, and upload scripts are hosted in the [br_platformio_hwdef](https://github.com/BeyondRobotix/br_platformio_hwdef) package. PlatformIO resolves board IDs before downloading packages, so a one-time global install is required on each new machine:
+
+```sh
+pio pkg install -g -t "git+https://github.com/BeyondRobotix/br_platformio_hwdef.git"
+```
+
+After that, `pio run` handles everything automatically and will keep the package up to date.
+
 ## Currently Supported Hardware
 
 This repository is plug and play with the Beyond Robotix CAN node series!
