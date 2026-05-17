@@ -22,15 +22,6 @@ void DroneCAN::init(CanardOnTransferReception onTransferReceived,
                shouldAcceptTransfer,
                NULL);
 
-    if (this->node_id > 0)
-    {
-        canardSetLocalNodeID(&this->canard, node_id);
-    }
-    else
-    {
-        Serial.println("Waiting for DNA node allocation");
-    }
-
     // initialise the internal LED
     pinMode(19, OUTPUT);
 
@@ -39,15 +30,20 @@ void DroneCAN::init(CanardOnTransferReception onTransferReceived,
     // put our user params into memory
     this->set_parameters(param_list);
 
-    // get the parameters in the EEPROM
+    // get the parameters from flash storage
     this->read_parameter_memory();
 
-    while (canardGetLocalNodeID(&this->canard) == CANARD_BROADCAST_NODE_ID)
+    // use the stored NODEID parameter to set the local node ID directly
+    uint8_t preferred = this->get_preferred_node_id();
+    if (preferred > 0 && preferred <= 127)
     {
-        this->cycle();
-        IWatchdog.reload();
-        digitalWrite(19, this->led_state);
-        this->led_state = !this->led_state;
+        canardSetLocalNodeID(&this->canard, preferred);
+        Serial.print("Using stored node ID: ");
+        Serial.println(preferred);
+    }
+    else
+    {
+        Serial.println("No valid node ID, DNA will run during cycle()");
     }
 }
 
@@ -91,15 +87,6 @@ void DroneCAN::init(const std::vector<parameter> &param_list, const char *name)
                DroneCAN_should_accept_adapter,
                this);
 
-    if (this->node_id > 0)
-    {
-        canardSetLocalNodeID(&this->canard, node_id);
-    }
-    else
-    {
-        Serial.println("Waiting for DNA node allocation");
-    }
-
     // initialise the internal LED
     pinMode(19, OUTPUT);
 
@@ -108,15 +95,20 @@ void DroneCAN::init(const std::vector<parameter> &param_list, const char *name)
     // put our user params into memory
     this->set_parameters(param_list);
 
-    // get the parameters in the EEPROM
+    // get the parameters from flash storage
     this->read_parameter_memory();
 
-    while (canardGetLocalNodeID(&this->canard) == CANARD_BROADCAST_NODE_ID)
+    // use the stored NODEID parameter to set the local node ID directly
+    uint8_t preferred = this->get_preferred_node_id();
+    if (preferred > 0 && preferred <= 127)
     {
-        this->cycle();
-        IWatchdog.reload();
-        digitalWrite(19, this->led_state);
-        this->led_state = !this->led_state;
+        canardSetLocalNodeID(&this->canard, preferred);
+        Serial.print("Using stored node ID: ");
+        Serial.println(preferred);
+    }
+    else
+    {
+        Serial.println("No valid node ID, DNA will run during cycle()");
     }
 }
 
@@ -155,7 +147,6 @@ void DroneCAN::cycle()
 
     this->processRx();
     this->processTx();
-    this->request_DNA();
 }
 
 /*
@@ -368,10 +359,12 @@ void DroneCAN::handle_param_ExecuteOpcode(CanardRxTransfer *transfer)
     if (req.opcode == UAVCAN_PROTOCOL_PARAM_EXECUTEOPCODE_REQUEST_OPCODE_SAVE)
     {
         // Save all the changed parameters to permanent storage
+        std::vector<float> values(parameters.size());
         for (size_t i = 0; i < parameters.size(); i++)
         {
-            EEPROM.put(i * sizeof(float), parameters[i].value);
+            values[i] = parameters[i].value;
         }
+        DroneCAN_Storage::save_all(values.data(), values.size());
     }
 
     struct uavcan_protocol_param_ExecuteOpcodeResponse pkt;
@@ -394,16 +387,32 @@ void DroneCAN::handle_param_ExecuteOpcode(CanardRxTransfer *transfer)
 }
 
 /*
-    Read the EEPROM parameter storage and set the current parameter list to the read values
+    Read parameter storage and set the current parameter list to the read values.
+    On first boot (no valid data in flash) the code defaults are written to flash
+    so they persist immediately.
 */
 void DroneCAN::read_parameter_memory()
 {
-    float p_val = 0.0;
-
+    // Build a flat array of current values so the storage layer can fill it in.
+    // If storage has no valid data the array (and thus our defaults) stays untouched.
+    std::vector<float> values(parameters.size());
     for (size_t i = 0; i < parameters.size(); i++)
     {
-        EEPROM.get(i * sizeof(float), p_val);
-        parameters[i].value = p_val;
+        values[i] = parameters[i].value;
+    }
+
+    if (DroneCAN_Storage::load(values.data(), values.size()))
+    {
+        for (size_t i = 0; i < parameters.size(); i++)
+        {
+            parameters[i].value = values[i];
+        }
+    }
+    else
+    {
+        // No valid data in flash — save the code defaults so they
+        // survive reboots even if the user never triggers a CAN save.
+        DroneCAN_Storage::save_all(values.data(), values.size());
     }
 }
 
@@ -441,7 +450,7 @@ size_t DroneCAN::getParameterIndex(const char *name, size_t name_len)
 }
 
 /*
-    Helper function to set parameter by index with validation and EEPROM persistence
+    Helper function to set parameter by index with validation and persistence
 */
 void DroneCAN::setParameterByIndex(size_t idx, float value)
 {
@@ -462,14 +471,14 @@ void DroneCAN::setParameterByIndex(size_t idx, float value)
         value = p.max_value;
     }
 
-    // Set value and persist to EEPROM
+    // Set value and persist to storage
     parameters[idx].value = value;
-    EEPROM.put(idx * sizeof(float), value);
+    DroneCAN_Storage::save(idx, value, parameters.size());
 }
 
 /*
     Set a parameter from storage by name
-    Values get stored as floats and persisted to EEPROM
+    Values get stored as floats and persisted to flash
     returns -1 if storage failed, 0 if good
 */
 int DroneCAN::setParameter(const char *name, float value)
@@ -822,6 +831,11 @@ void DroneCAN::process1HzTasks(uint64_t timestamp_usec)
       Transmit the node status message
     */
     send_NodeStatus();
+
+    /*
+      Request DNA node ID allocation if we don't have one yet
+    */
+    request_DNA();
 }
 
 /*

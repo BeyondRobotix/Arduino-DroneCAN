@@ -12,14 +12,16 @@
     #include <canL431.h>
 #endif
 #ifdef CANH7
-    #include <canH7.h>
+    #include <canH743.h>
 #endif
 #ifdef ARDUINO_NUCLEO_H723ZG
     #include <canH723.h>
 #endif
-#include <EEPROM.h>
+#include <storage.h>
 #include <vector>
 #include <IWatchdog.h>
+#include <app.h>
+#include <simple_dronecanmessages.h>
 
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 #define C_TO_KELVIN(temp) (temp + 273.15f)
@@ -38,7 +40,6 @@ private:
     uint32_t looptime;
     bool led_state = false;
     uint64_t uptime = 0;
-    static constexpr uint16_t PARAM_EEPROM_BASE = 0x0000; // EEPROM base address
     std::vector<size_t> sorted_indices;                   // built on first use
     int node_id = 0;
     char node_name[80];
@@ -84,7 +85,7 @@ private:
     void processRx();
     static uint64_t micros64();
 
-    // Helper function to set parameter by index with validation and EEPROM persistence
+    // Helper function to set parameter by index with validation and persistence
     void setParameterByIndex(size_t idx, float value);
 
     // Helper function to find parameter index by name
