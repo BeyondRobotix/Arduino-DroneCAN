@@ -2,7 +2,6 @@
 #include <dronecan.h>
 
 
-
 // set up your parameters here with default values. NODEID should be kept
 std::vector<DroneCAN::parameter> custom_parameters = {
     { "NODEID", DroneCAN::INT,   100,  1, 127 },

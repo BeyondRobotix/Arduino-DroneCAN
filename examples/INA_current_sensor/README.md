@@ -1,5 +1,16 @@
-# INA current sensor example
+# INA239 Current Sensor
 
-This example illustrates how an already availible library can be used to easily integrate a new sensor into dronecan.
+Reads voltage, current, and temperature from an INA239 SPI current/power monitor and broadcasts them as a DroneCAN `BatteryInfo` message at 10Hz.
 
-**this is untested code currently** I'll be able to test it at some point when I get an INA to hand.
+The INA239 is initialised with a 10A max current range and a 15mΩ shunt resistor — adjust the `INA.setMaxCurrentShunt()` call in `main.cpp` to match your hardware.
+
+> **Note:** This example is untested. It is provided as an illustration of how to integrate an SPI sensor with the DroneCAN library.
+
+## Dependencies
+
+Install the INA239 library by RobTillaart:
+https://github.com/RobTillaart/INA239
+
+Download the zip and place the unzipped folder in the `lib` directory of your project. Make sure there are no nested folders inside (this can happen when unzipping from GitHub).
+
+Alternatively, install it via the PlatformIO library manager.

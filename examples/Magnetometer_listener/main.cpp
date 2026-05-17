@@ -1,21 +1,19 @@
 /*
-Listens for DroneCAN ArrayCommand messages and drives a servo on PA8 to the
-commanded position. The actuator ID this node responds to is set by the
-ACTUATOR_ID parameter (default 0).
+Demonstrates receiving DroneCAN messages using the full callback API.
 
-command_value is expected in the range -1.0 to 1.0, which maps to 0-180 degrees.
-This matches the range sent by ArduPilot for servo outputs over DroneCAN.
+Listens for MagneticFieldStrength broadcast messages and prints the X, Y, Z
+field values (in Gauss) to Serial at whatever rate the sender transmits them.
+
+Use this as a template when you need to receive any DroneCAN message type —
+copy the pattern in onTransferReceived and shouldAcceptTransfer, substituting
+the message ID, signature, struct, and decode call for your target message.
 */
 
 #include <Arduino.h>
 #include <dronecan.h>
-#include <Servo.h>
-
-Servo myservo;
 
 std::vector<DroneCAN::parameter> custom_parameters = {
-    { "NODEID",      DroneCAN::INT, 100, 0, 127 },
-    { "ACTUATOR_ID", DroneCAN::INT, 0,   0, 14  },
+    { "NODEID", DroneCAN::INT, 100, 0, 127 },
 };
 
 DroneCAN dronecan;
@@ -24,23 +22,14 @@ static void onTransferReceived(CanardInstance *ins, CanardRxTransfer *transfer)
 {
     switch (transfer->data_type_id)
     {
-    case UAVCAN_EQUIPMENT_ACTUATOR_ARRAYCOMMAND_ID:
+    case UAVCAN_EQUIPMENT_AHRS_MAGNETICFIELDSTRENGTH_ID:
     {
-        uavcan_equipment_actuator_ArrayCommand pkt{};
-        uavcan_equipment_actuator_ArrayCommand_decode(transfer, &pkt);
+        uavcan_equipment_ahrs_MagneticFieldStrength pkt{};
+        uavcan_equipment_ahrs_MagneticFieldStrength_decode(transfer, &pkt);
 
-        int actuator_id = (int)dronecan.getParameter("ACTUATOR_ID");
-
-        for (uint8_t i = 0; i < pkt.commands.len; i++)
-        {
-            if (pkt.commands.data[i].actuator_id == actuator_id)
-            {
-                // map -1.0..1.0 to 0..180 degrees
-                float angle = (pkt.commands.data[i].command_value + 1.0f) * 90.0f;
-                myservo.write((int)constrain(angle, 0, 180));
-                break;
-            }
-        }
+        Serial.print("Mag X: "); Serial.print(pkt.magnetic_field_ga[0]);
+        Serial.print("  Y: ");   Serial.print(pkt.magnetic_field_ga[1]);
+        Serial.print("  Z: ");   Serial.println(pkt.magnetic_field_ga[2]);
         break;
     }
     }
@@ -58,8 +47,8 @@ static bool shouldAcceptTransfer(const CanardInstance *ins,
     {
         switch (data_type_id)
         {
-        case UAVCAN_EQUIPMENT_ACTUATOR_ARRAYCOMMAND_ID:
-            *out_data_type_signature = UAVCAN_EQUIPMENT_ACTUATOR_ARRAYCOMMAND_SIGNATURE;
+        case UAVCAN_EQUIPMENT_AHRS_MAGNETICFIELDSTRENGTH_ID:
+            *out_data_type_signature = UAVCAN_EQUIPMENT_AHRS_MAGNETICFIELDSTRENGTH_SIGNATURE;
             return true;
         }
     }
@@ -77,11 +66,9 @@ void setup()
         onTransferReceived,
         shouldAcceptTransfer,
         custom_parameters,
-        "Beyond Robotix Servo"
+        "Beyond Robotix Listener"
     );
     // end of important starting code
-
-    myservo.attach(PA_8);
 
     // we use a while true loop instead of the arduino "loop" function since that causes issues.
     while (true)
