@@ -230,15 +230,9 @@ bool CANInit(BITRATE bitrate, int remap)
         }
         // delay(1);
         CAN1->MCR &= ~(0x1UL); // Require CAN1 to normal mode
-        Serial.println("CAN normal mode attempt again");
     }
-    if (can1)
+    if (!can1)
     {
-        Serial.println("CAN1 initialize ok");
-    }
-    else
-    {
-        Serial.println("CAN1 initialize fail!!");
         return false;
     }
     return true;
@@ -371,16 +365,8 @@ void CANSend(const CanardCANFrame *CAN_tx_msg)
     while (CAN1->sTxMailBox[0].TIR & 0x1UL && count++ < 1000000)
         ;
 
-    // The mailbox don't becomes empty while loop
-    if (CAN1->sTxMailBox[0].TIR & 0x1UL)
-    {
-        Serial.print("Send Fail ");
-        Serial.print(CAN1->ESR);
-        Serial.print(" ");
-        Serial.print(CAN1->MSR);
-        Serial.print(" ");
-        Serial.println(CAN1->TSR);
-    }
+    // The mailbox don't becomes empty while loop -- caller can poll
+    // CAN1->ESR / MSR / TSR for diagnostics if needed.
 }
 
 /**
