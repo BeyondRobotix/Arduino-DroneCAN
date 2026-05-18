@@ -1,11 +1,3 @@
-/************************************************************************************
- * Adapted from ArduPilot flash driver (originally by Uros Platise, Andrew Tridgell,
- * and Siddharth Bharat Purohit) for use in Arduino-DroneCAN.
- *
- * Stripped to essentials: erase, write, and query — no ChibiOS dependencies.
- * Uses Arduino noInterrupts()/interrupts() for ISR protection.
- ************************************************************************************/
-
 #include "flash.h"
 #include <Arduino.h>
 #include <string.h>

@@ -38,12 +38,14 @@ void DroneCAN::init(CanardOnTransferReception onTransferReceived,
     if (preferred > 0 && preferred <= 127)
     {
         canardSetLocalNodeID(&this->canard, preferred);
-        Serial.print("Using stored node ID: ");
-        Serial.println(preferred);
+        if (Serial) {
+            Serial.print("Using stored node ID: ");
+            Serial.println(preferred);
+        }
     }
     else
     {
-        Serial.println("No valid node ID, DNA will run during cycle()");
+        if (Serial) Serial.println("No valid node ID, DNA will run during cycle()");
     }
 }
 
@@ -103,12 +105,44 @@ void DroneCAN::init(const std::vector<parameter> &param_list, const char *name)
     if (preferred > 0 && preferred <= 127)
     {
         canardSetLocalNodeID(&this->canard, preferred);
-        Serial.print("Using stored node ID: ");
-        Serial.println(preferred);
+        if (Serial) {
+            Serial.print("Using stored node ID: ");
+            Serial.println(preferred);
+        }
     }
     else
     {
-        Serial.println("No valid node ID, DNA will run during cycle()");
+        if (Serial) Serial.println("No valid node ID, DNA will run during cycle()");
+    }
+}
+
+/*
+    Bare init: CAN + canard only. No parameter storage, no std::vector.
+    preferred_node_id seeds canardSetLocalNodeID directly; 0 leaves DNA to cycle().
+*/
+void DroneCAN::init(CanardOnTransferReception onTransferReceived,
+                    CanardShouldAcceptTransfer shouldAcceptTransfer,
+                    const char *name,
+                    uint8_t preferred_node_id)
+{
+    CANInit(CAN_1000KBPS, 2);
+
+    strncpy(this->node_name, name, sizeof(this->node_name));
+
+    IWatchdog.reload();
+
+    canardInit(&canard,
+               memory_pool,
+               sizeof(memory_pool),
+               onTransferReceived,
+               shouldAcceptTransfer,
+               this);
+
+    IWatchdog.reload();
+
+    if (preferred_node_id > 0 && preferred_node_id <= 127)
+    {
+        canardSetLocalNodeID(&this->canard, preferred_node_id);
     }
 }
 
@@ -122,12 +156,15 @@ uint8_t DroneCAN::get_preferred_node_id()
     {
         return (uint8_t)ret;
     }
-    else
-    {
-        Serial.println("No NODEID in storage, setting..");
-        this->setParameter("NODEID", PREFERRED_NODE_ID);
-        return get_preferred_node_id();
-    }
+    /* NODEID isn't in the parameter table -- try to add it, then fall back
+       to the compile-time default. setParameter() returns -1 silently if the
+       parameter doesn't already exist (it only updates, never inserts), so
+       recursing here -- as the original code did -- would loop forever and
+       blow the stack. Just return the default and let the caller decide what
+       to do with it. */
+    if (Serial) Serial.println("No NODEID in storage, using default");
+    this->setParameter("NODEID", PREFERRED_NODE_ID);
+    return PREFERRED_NODE_ID;
 }
 
 /*
@@ -141,8 +178,11 @@ void DroneCAN::cycle()
     {
         this->looptime = millis();
         this->process1HzTasks(this->micros64());
-        digitalWrite(19, this->led_state);
-        this->led_state = !this->led_state;
+        if (cycle_led_pin >= 0)
+        {
+            digitalWrite(cycle_led_pin, this->led_state);
+            this->led_state = !this->led_state;
+        }
     }
 
     this->processRx();
@@ -191,8 +231,10 @@ void DroneCAN::getUniqueID(uint8_t uniqueId[16])
 */
 void DroneCAN::handle_GetNodeInfo(CanardRxTransfer *transfer)
 {
-    Serial.print("GetNodeInfo request from");
-    Serial.println(transfer->source_node_id);
+    if (Serial) {
+        Serial.print("GetNodeInfo request from");
+        Serial.println(transfer->source_node_id);
+    }
 
     uint8_t buffer[UAVCAN_PROTOCOL_GETNODEINFO_RESPONSE_MAX_SIZE];
     struct uavcan_protocol_GetNodeInfoResponse pkt;
@@ -250,19 +292,21 @@ void DroneCAN::handle_param_GetSet(CanardRxTransfer *transfer)
     if ((int)req.name.len > 0)
     {
         // Name‐based lookup
-        Serial.print("Name based lookup");
+        if (Serial) Serial.print("Name based lookup");
         idx = getParameterIndex((const char *)req.name.data, req.name.len);
         if (idx != SIZE_MAX)
         {
-            Serial.println(idx);
+            if (Serial) Serial.println(idx);
         }
     }
     // If that failed, try index‐based lookup
     if (idx == SIZE_MAX && req.index < parameters.size())
     {
         idx = req.index;
-        Serial.print("Parameter index lookup");
-        Serial.println(idx);
+        if (Serial) {
+            Serial.print("Parameter index lookup");
+            Serial.println(idx);
+        }
     }
 
     IWatchdog.reload();
@@ -503,7 +547,7 @@ int DroneCAN::handle_DNA_Allocation(CanardRxTransfer *transfer)
         return 0;
     }
 
-    Serial.println("We got a node ID message back");
+    if (Serial) Serial.println("We got a node ID message back");
 
     // Rule C - updating the randomized time interval
     DNA.send_next_node_id_allocation_request_at_ms =
@@ -512,7 +556,7 @@ int DroneCAN::handle_DNA_Allocation(CanardRxTransfer *transfer)
 
     if (transfer->source_node_id == CANARD_BROADCAST_NODE_ID)
     {
-        Serial.println("Allocation request from another allocatee\n");
+        if (Serial) Serial.println("Allocation request from another allocatee\n");
         DNA.node_id_allocation_unique_id_offset = 0;
         return 0;
     }
@@ -529,7 +573,7 @@ int DroneCAN::handle_DNA_Allocation(CanardRxTransfer *transfer)
     // Matching the received UID against the local one
     if (memcmp(msg.unique_id.data, my_unique_id, msg.unique_id.len) != 0)
     {
-        Serial.println("DNA failed this time");
+        if (Serial) Serial.println("DNA failed this time");
         DNA.node_id_allocation_unique_id_offset = 0;
         // No match, return
         return 0;
@@ -542,14 +586,16 @@ int DroneCAN::handle_DNA_Allocation(CanardRxTransfer *transfer)
         // the next stage and updating the timeout.
         DNA.node_id_allocation_unique_id_offset = msg.unique_id.len;
         DNA.send_next_node_id_allocation_request_at_ms -= UAVCAN_PROTOCOL_DYNAMIC_NODE_ID_ALLOCATION_MIN_REQUEST_PERIOD_MS;
-        Serial.println("second stage Node ID allocation");
+        if (Serial) Serial.println("second stage Node ID allocation");
     }
     else
     {
         // Allocation complete - copying the allocated node ID from the message
         canardSetLocalNodeID(&canard, msg.node_id);
-        Serial.print("Node ID allocated: ");
-        Serial.println(msg.node_id);
+        if (Serial) {
+            Serial.print("Node ID allocated: ");
+            Serial.println(msg.node_id);
+        }
     }
     return 0;
 }
@@ -584,8 +630,10 @@ void DroneCAN::request_DNA()
     uint8_t allocation_request[CANARD_CAN_FRAME_MAX_DATA_LEN - 1];
     uint8_t pref_node_id = (uint8_t)(this->get_preferred_node_id() << 1U);
 
-    Serial.print("Requesting ID ");
-    Serial.println(pref_node_id / 2); // not sure why this is over 2 .. something to do with the bit shifting but this is what it actually sets
+    if (Serial) {
+        Serial.print("Requesting ID ");
+        Serial.println(pref_node_id / 2); // not sure why this is over 2 .. something to do with the bit shifting but this is what it actually sets
+    }
 
     allocation_request[0] = pref_node_id;
 
@@ -621,8 +669,10 @@ void DroneCAN::request_DNA()
                                               (uint16_t)(uid_size + 1));
     if (bcast_res < 0)
     {
-        Serial.print("Could not broadcast ID allocation req; error");
-        Serial.println(bcast_res);
+        if (Serial) {
+            Serial.print("Could not broadcast ID allocation req; error");
+            Serial.println(bcast_res);
+        }
     }
 
     // Preparing for timeout; if response is received, this value will be updated from the callback.
@@ -654,7 +704,7 @@ void DroneCAN::request_DNA()
  */
 void DroneCAN::handle_begin_firmware_update(CanardRxTransfer *transfer)
 {
-    Serial.println("Update request received");
+    if (Serial) Serial.println("Update request received");
 
     auto *comms = (struct app_bootloader_comms *)0x20000000;
 
@@ -708,6 +758,19 @@ void DroneCAN::handle_begin_firmware_update(CanardRxTransfer *transfer)
 }
 
 /*
+    Bootloader-side entry point: prime the FileRead client to download an
+    image from `server_node_id` at `remote_path`. Subsequent send_firmware_read()
+    calls (driven from the bootloader main loop) will pull chunks; chunks are
+    delivered to the registered firmware_write_cb.
+*/
+void DroneCAN::begin_firmware_download(uint8_t server_node_id, const char *remote_path)
+{
+    memset(&fwupdate, 0, sizeof(fwupdate));
+    fwupdate.node_id = server_node_id;
+    strncpy(fwupdate.path, remote_path, sizeof(fwupdate.path) - 1);
+}
+
+/*
     send a read for a firmware update. This asks the client (firmware
     server) for a piece of the new firmware
 */
@@ -752,22 +815,26 @@ void DroneCAN::handle_file_read_response(CanardRxTransfer *transfer)
         transfer->source_node_id != fwupdate.node_id)
     {
         /* not for us */
-        Serial.println("Firmware update: not for us");
         return;
     }
     struct uavcan_protocol_file_ReadResponse pkt;
     if (uavcan_protocol_file_ReadResponse_decode(transfer, &pkt))
     {
         /* bad packet */
-        Serial.println("Firmware update: bad packet\n");
         return;
     }
     if (pkt.error.value != UAVCAN_PROTOCOL_FILE_ERROR_OK)
     {
         /* read failed */
         fwupdate.node_id = 0;
-        Serial.println("Firmware update read failure\n");
         return;
+    }
+
+    /* Persist this chunk if a write hook is registered (bootloader).
+       Without a hook the data is dropped, matching prior behavior. */
+    if (firmware_write_cb != nullptr && pkt.data.len > 0)
+    {
+        firmware_write_cb(fwupdate.offset, pkt.data.data, pkt.data.len);
     }
 
     fwupdate.offset += pkt.data.len;
@@ -785,20 +852,31 @@ void DroneCAN::send_NodeStatus(void)
     uint8_t buffer[UAVCAN_PROTOCOL_GETNODEINFO_RESPONSE_MAX_SIZE];
 
     node_status.uptime_sec = uptime++;
-    node_status.health = UAVCAN_PROTOCOL_NODESTATUS_HEALTH_OK;
-    node_status.mode = UAVCAN_PROTOCOL_NODESTATUS_MODE_OPERATIONAL;
     node_status.sub_mode = 0;
-    // put whatever you like in here for display in GUI
-    node_status.vendor_specific_status_code = 0;
 
-    /*
-      when doing a firmware update put the size in kbytes in VSSC so
-      the user can see how far it has reached
-     */
-    if (fwupdate.node_id != 0)
+    if (node_status_override_active)
     {
-        node_status.vendor_specific_status_code = fwupdate.offset / 1024;
-        node_status.mode = UAVCAN_PROTOCOL_NODESTATUS_MODE_SOFTWARE_UPDATE;
+        /* Caller-supplied state takes precedence. Used by the bootloader
+           to surface a flash-erase / write failure on the GCS node list. */
+        node_status.health = node_status_override_health;
+        node_status.mode   = node_status_override_mode;
+        node_status.vendor_specific_status_code = node_status_override_vssc;
+    }
+    else
+    {
+        node_status.health = UAVCAN_PROTOCOL_NODESTATUS_HEALTH_OK;
+        node_status.mode = UAVCAN_PROTOCOL_NODESTATUS_MODE_OPERATIONAL;
+        node_status.vendor_specific_status_code = 0;
+
+        /*
+          when doing a firmware update put the size in kbytes in VSSC so
+          the user can see how far it has reached
+         */
+        if (fwupdate.node_id != 0)
+        {
+            node_status.vendor_specific_status_code = fwupdate.offset / 1024;
+            node_status.mode = UAVCAN_PROTOCOL_NODESTATUS_MODE_SOFTWARE_UPDATE;
+        }
     }
 
     uint32_t len = uavcan_protocol_NodeStatus_encode(&node_status, buffer);
@@ -934,7 +1012,7 @@ void DroneCANonTransferReceived(DroneCAN &dronecan, CanardInstance *ins, CanardR
                             buffer,
                             len);
 
-            Serial.println("Reset..");
+            if (Serial) Serial.println("Reset..");
             delay(200);
             // yeeeeeet
             NVIC_SystemReset();
