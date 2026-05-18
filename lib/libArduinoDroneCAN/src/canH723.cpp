@@ -98,7 +98,7 @@ void CANSend(const CanardCANFrame *tx_msg) {
     // Attempt to send the message. This is non-blocking.
     uint32_t send_status = active_can_iface->tryToSendReturnStatusFD(message);
     if (send_status != 0) {
-        Serial.println("Failed to send CAN message");
+        if (Serial) Serial.println("Failed to send CAN message");
     }
 }
 
