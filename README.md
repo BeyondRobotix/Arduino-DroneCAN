@@ -6,8 +6,6 @@ By using the Arduino core and PlatformIO with pre-configured board setups, you c
 
 This isn't intended to be used in the same way as AP_Periph, which supports a bunch of Ardupilot sensors all at once and is adaptable without writing code. This is intended for writing a DroneCAN interface for any sensor or system, without having to deal with a large code base and lots of boilerplate.
 
-
-
 ## Features
 
 - Send DroneCAN messages ✅
@@ -19,7 +17,6 @@ This isn't intended to be used in the same way as AP_Periph, which supports a bu
 - Multiple CAN ports ❌
 
 ## Code Usage
-
 
 Apart from calling usual init functions and our library update function, sending a DroneCAN message boils down to this:
 ```cpp
@@ -36,13 +33,15 @@ We have a big tutorial here which runs through integrating a sensor: [Arduino Dr
 
 ## PlatformIO Setup
 
-Board definitions, variants, and upload scripts are hosted in the [br_platformio_hwdef](https://github.com/BeyondRobotix/br_platformio_hwdef) package. PlatformIO resolves board IDs before downloading packages, so a one-time global install is required on each new machine:
+Board definitions, variants, linker scripts, and the bundled bootloader binaries are provided by the [br_platformio_hwdef](https://github.com/BeyondRobotix/br_platformio_hwdef) platform, referenced directly from `platformio.ini`:
 
-```sh
-pio pkg install -g -t "git+https://github.com/BeyondRobotix/br_platformio_hwdef.git"
+```ini
+[env]
+platform = https://github.com/BeyondRobotix/br_platformio_hwdef.git
+framework = arduino
 ```
 
-After that, `pio run` handles everything automatically and will keep the package up to date.
+PlatformIO fetches the platform on first build — no separate install step. To pick up new changes to the platform, force a refetch with `pio pkg uninstall --platform br-stm32 -g`.
 
 ## Currently Supported Hardware
 

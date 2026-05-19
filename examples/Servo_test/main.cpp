@@ -14,8 +14,8 @@ This matches the range sent by ArduPilot for servo outputs over DroneCAN.
 Servo myservo;
 
 std::vector<DroneCAN::parameter> custom_parameters = {
-    { "NODEID",      DroneCAN::INT, 100, 0, 127 },
-    { "ACTUATOR_ID", DroneCAN::INT, 0,   0, 14  },
+    {"NODEID", DroneCAN::INT, 100, 0, 127},
+    {"ACTUATOR_ID", DroneCAN::INT, 0, 0, 14},
 };
 
 DroneCAN dronecan;
@@ -77,21 +77,14 @@ void setup()
         onTransferReceived,
         shouldAcceptTransfer,
         custom_parameters,
-        "Beyond Robotix Servo"
-    );
+        "Beyond Robotix Servo");
     // end of important starting code
 
     myservo.attach(PA_8);
-
-    // we use a while true loop instead of the arduino "loop" function since that causes issues.
-    while (true)
-    {
-        dronecan.cycle();
-        IWatchdog.reload();
-    }
 }
 
 void loop()
 {
-    // Doesn't work coming from bootloader ? use while loop in setup
+    dronecan.cycle();
+    IWatchdog.reload();
 }

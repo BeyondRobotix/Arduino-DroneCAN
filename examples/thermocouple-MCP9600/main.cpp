@@ -5,9 +5,9 @@
 
 // set up your parameters here with default values. NODEID should be kept
 std::vector<DroneCAN::parameter> custom_parameters = {
-    {"NODEID",    DroneCAN::INT, 100, 0, 127},
-    {"DEVICE_ID", DroneCAN::INT, 0,   0, 127},
-    {"BATT_EN",   DroneCAN::INT, 0,   0, 1},
+    {"NODEID", DroneCAN::INT, 100, 0, 127},
+    {"DEVICE_ID", DroneCAN::INT, 0, 0, 127},
+    {"BATT_EN", DroneCAN::INT, 0, 0, 1},
 };
 
 DroneCAN dronecan;
@@ -54,55 +54,49 @@ void setup()
 
     // Set the thermocouple type
     mcp.setThermocoupleType(MCP9600_TYPE_K);
-
-    // we use a while true loop instead of the arduino "loop" function since that causes issues.
-    while (true)
-    {
-        const uint32_t now = millis();
-
-        if (now - loop1time > 100)
-        {
-            loop1time = millis();
-
-            if (batt_en)
-            {
-
-                uavcan_equipment_power_BatteryInfo pkt{};
-
-                pkt.battery_id = device_id;
-                pkt.current = 0;
-                pkt.voltage = 0;
-                pkt.temperature = mcp.readThermocouple();
-
-                sendUavcanMsg(dronecan.canard, pkt);
-            }
-        }
-
-        if (now - loop2time > 1000)
-        {
-            loop2time = millis();
-
-            uavcan_equipment_device_Temperature pkt{};
-
-            pkt.temperature = mcp.readThermocouple();
-            pkt.device_id = device_id;
-
-            sendUavcanMsg(dronecan.canard, pkt);
-        }
-
-        if (now - looptime1hz > 1000)
-        {
-            looptime1hz = millis();
-            batt_en = dronecan.getParameter("BATT_EN");
-            device_id = dronecan.getParameter("DEVICE_ID");
-        }
-
-        dronecan.cycle();
-        IWatchdog.reload();
-    }
 }
 
 void loop()
 {
-    // Doesn't work coming from bootloader ? use while loop in setup
+    const uint32_t now = millis();
+
+    if (now - loop1time > 100)
+    {
+        loop1time = millis();
+
+        if (batt_en)
+        {
+
+            uavcan_equipment_power_BatteryInfo pkt{};
+
+            pkt.battery_id = device_id;
+            pkt.current = 0;
+            pkt.voltage = 0;
+            pkt.temperature = mcp.readThermocouple();
+
+            sendUavcanMsg(dronecan.canard, pkt);
+        }
+    }
+
+    if (now - loop2time > 1000)
+    {
+        loop2time = millis();
+
+        uavcan_equipment_device_Temperature pkt{};
+
+        pkt.temperature = mcp.readThermocouple();
+        pkt.device_id = device_id;
+
+        sendUavcanMsg(dronecan.canard, pkt);
+    }
+
+    if (now - looptime1hz > 1000)
+    {
+        looptime1hz = millis();
+        batt_en = dronecan.getParameter("BATT_EN");
+        device_id = dronecan.getParameter("DEVICE_ID");
+    }
+
+    dronecan.cycle();
+    IWatchdog.reload();
 }

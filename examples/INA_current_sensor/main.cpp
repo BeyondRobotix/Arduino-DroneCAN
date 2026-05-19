@@ -26,8 +26,7 @@ void setup()
     Serial.begin(115200);
     dronecan.init(
         custom_parameters,
-        "Beyond Robotix Node"
-    );
+        "Beyond Robotix Node");
     // end of important starting code
 
     SPI.begin();
@@ -41,31 +40,26 @@ void setup()
 
     // set your shunt resistance here
     INA.setMaxCurrentShunt(10, 0.015);
-
-    while (true)
-    {
-        const uint32_t now = millis();
-
-        // send our battery message at 10Hz
-        if (now - looptime > 100)
-        {
-            looptime = millis();
-
-            // construct dronecan packet
-            uavcan_equipment_power_BatteryInfo pkt{};
-            pkt.voltage = INA.getBusVoltage();
-            pkt.current = INA.getMilliAmpere() / 1000;
-            pkt.temperature = INA.getTemperature();
-
-            sendUavcanMsg(dronecan.canard, pkt);
-        }
-
-        dronecan.cycle();
-        IWatchdog.reload();
-    }
 }
 
 void loop()
 {
-    // Doesn't work coming from bootloader ? use while loop in setup
+    const uint32_t now = millis();
+
+    // send our battery message at 10Hz
+    if (now - looptime > 100)
+    {
+        looptime = millis();
+
+        // construct dronecan packet
+        uavcan_equipment_power_BatteryInfo pkt{};
+        pkt.voltage = INA.getBusVoltage();
+        pkt.current = INA.getMilliAmpere() / 1000;
+        pkt.temperature = INA.getTemperature();
+
+        sendUavcanMsg(dronecan.canard, pkt);
+    }
+
+    dronecan.cycle();
+    IWatchdog.reload();
 }

@@ -13,7 +13,7 @@ the message ID, signature, struct, and decode call for your target message.
 #include <dronecan.h>
 
 std::vector<DroneCAN::parameter> custom_parameters = {
-    { "NODEID", DroneCAN::INT, 100, 0, 127 },
+    {"NODEID", DroneCAN::INT, 100, 0, 127},
 };
 
 DroneCAN dronecan;
@@ -27,9 +27,12 @@ static void onTransferReceived(CanardInstance *ins, CanardRxTransfer *transfer)
         uavcan_equipment_ahrs_MagneticFieldStrength pkt{};
         uavcan_equipment_ahrs_MagneticFieldStrength_decode(transfer, &pkt);
 
-        Serial.print("Mag X: "); Serial.print(pkt.magnetic_field_ga[0]);
-        Serial.print("  Y: ");   Serial.print(pkt.magnetic_field_ga[1]);
-        Serial.print("  Z: ");   Serial.println(pkt.magnetic_field_ga[2]);
+        Serial.print("Mag X: ");
+        Serial.print(pkt.magnetic_field_ga[0]);
+        Serial.print("  Y: ");
+        Serial.print(pkt.magnetic_field_ga[1]);
+        Serial.print("  Z: ");
+        Serial.println(pkt.magnetic_field_ga[2]);
         break;
     }
     }
@@ -66,19 +69,12 @@ void setup()
         onTransferReceived,
         shouldAcceptTransfer,
         custom_parameters,
-        "Beyond Robotix Listener"
-    );
+        "Beyond Robotix Listener");
     // end of important starting code
-
-    // we use a while true loop instead of the arduino "loop" function since that causes issues.
-    while (true)
-    {
-        dronecan.cycle();
-        IWatchdog.reload();
-    }
 }
 
 void loop()
 {
-    // Doesn't work coming from bootloader ? use while loop in setup
+    dronecan.cycle();
+    IWatchdog.reload();
 }
