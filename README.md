@@ -31,7 +31,7 @@ See [Beyond Robotix Gitbooks ArduinoCAN documentation](https://beyond-robotix.gi
 
 We have a big tutorial here which runs through integrating a sensor: [Arduino DroneCAN tutorial](https://beyond-robotix.gitbook.io/docs/can-node-system/arduino-dronecan/thermocouple-tutorial)
 
-## PlatformIO Setup
+## PlatformIO Management
 
 Board definitions, variants, linker scripts, and the bundled bootloader binaries are provided by the [br_platformio_hwdef](https://github.com/BeyondRobotix/br_platformio_hwdef) platform, referenced directly from `platformio.ini`:
 
@@ -42,6 +42,12 @@ framework = arduino
 ```
 
 PlatformIO fetches the platform on first build — no separate install step. To pick up new changes to the platform, force a refetch with `pio pkg uninstall --platform br-stm32 -g`.
+
+The DroneCAN library itself is pulled in the same way, pinned to a tag:
+
+```ini
+lib_deps = https://github.com/BeyondRobotix/libArduinoDroneCAN.git#v1.0.0
+```
 
 ## Currently Supported Hardware
 
