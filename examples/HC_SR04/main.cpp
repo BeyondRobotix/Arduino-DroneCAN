@@ -59,13 +59,16 @@ void loop()
         uint8_t buffer[UAVCAN_EQUIPMENT_RANGE_SENSOR_MEASUREMENT_MAX_SIZE];
         uint32_t len = uavcan_equipment_range_sensor_Measurement_encode(&pkt, buffer);
         static uint8_t transfer_id;
-        canardBroadcast(&dronecan.canard,
-                        UAVCAN_EQUIPMENT_RANGE_SENSOR_MEASUREMENT_SIGNATURE,
-                        UAVCAN_EQUIPMENT_RANGE_SENSOR_MEASUREMENT_ID,
-                        &transfer_id,
-                        CANARD_TRANSFER_PRIORITY_LOW,
-                        buffer,
-                        len);
+        CanardTxTransfer transfer_object = {
+            .transfer_type = CanardTransferTypeBroadcast,
+            .data_type_signature = UAVCAN_EQUIPMENT_RANGE_SENSOR_MEASUREMENT_SIGNATURE,
+            .data_type_id = UAVCAN_EQUIPMENT_RANGE_SENSOR_MEASUREMENT_ID,
+            .inout_transfer_id = &transfer_id,
+            .priority = CANARD_TRANSFER_PRIORITY_LOW,
+            .payload = buffer,
+            .payload_len = (uint16_t)len,
+        };
+        canardBroadcastObj(&dronecan.canard, &transfer_object);
     }
     dronecan.cycle();
     IWatchdog.reload();
