@@ -48,7 +48,7 @@ PlatformIO fetches the platform on first build — no separate install step. To 
 The [libArduinoDroneCAN](https://github.com/BeyondRobotix/libArduinoDroneCAN) library itself is pulled in the same way, pinned to a tag:
 
 ```ini
-lib_deps = https://github.com/BeyondRobotix/libArduinoDroneCAN.git#v2.0.0
+lib_deps = https://github.com/BeyondRobotix/libArduinoDroneCAN.git#vX.Y.Z
 ```
 
 ## Currently Supported Hardware
